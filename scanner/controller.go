@@ -13,6 +13,7 @@ import (
 	"github.com/navidrome/navidrome/consts"
 	"github.com/navidrome/navidrome/core/artwork"
 	"github.com/navidrome/navidrome/core/auth"
+	"github.com/navidrome/navidrome/core/mediamarkers"
 	"github.com/navidrome/navidrome/core/metrics"
 	"github.com/navidrome/navidrome/core/playlists"
 	"github.com/navidrome/navidrome/db"
@@ -29,7 +30,7 @@ var (
 )
 
 func New(rootCtx context.Context, ds model.DataStore, cw artwork.CacheWarmer, broker events.Broker,
-	pls playlists.Playlists, m metrics.Metrics) model.Scanner {
+	pls playlists.Playlists, m metrics.Metrics, mm mediamarkers.MediaMarkers) model.Scanner {
 	c := &controller{
 		rootCtx:            rootCtx,
 		ds:                 ds,
@@ -37,6 +38,7 @@ func New(rootCtx context.Context, ds model.DataStore, cw artwork.CacheWarmer, br
 		broker:             broker,
 		pls:                pls,
 		metrics:            m,
+		mm:                 mm,
 		devExternalScanner: conf.Server.DevExternalScanner,
 	}
 	if !c.devExternalScanner {
@@ -49,12 +51,13 @@ func (s *controller) getScanner() scanner {
 	if s.devExternalScanner {
 		return &scannerExternal{}
 	}
-	return &scannerImpl{ds: s.ds, cw: s.cw, pls: s.pls}
+	return &scannerImpl{ds: s.ds, cw: s.cw, pls: s.pls, mm: s.mm}
 }
 
 // CallScan starts an in-process scan of specific library/folder pairs.
 // If targets is empty, it scans all libraries.
-// This is meant to be called from the command line (see cmd/scan.go).
+// This is meant to be called from the command line (see cmd/scan.go), which doesn't load the
+// plugin system, so no MediaMarkerProvider plugins run for this path.
 func CallScan(ctx context.Context, ds model.DataStore, pls playlists.Playlists, fullScan bool, targets []model.ScanTarget) (<-chan *ProgressInfo, error) {
 	release, err := lockScan(ctx)
 	if err != nil {
@@ -66,7 +69,7 @@ func CallScan(ctx context.Context, ds model.DataStore, pls playlists.Playlists, 
 	progress := make(chan *ProgressInfo, 100)
 	go func() {
 		defer close(progress)
-		scanner := &scannerImpl{ds: ds, cw: artwork.NoopCacheWarmer(), pls: pls}
+		scanner := &scannerImpl{ds: ds, cw: artwork.NoopCacheWarmer(), pls: pls, mm: mediamarkers.New(nil)}
 		scanner.scanFolders(ctx, fullScan, targets, progress)
 	}()
 	return progress, nil
@@ -100,6 +103,7 @@ type controller struct {
 	cw                 artwork.CacheWarmer
 	broker             events.Broker
 	metrics            metrics.Metrics
+	mm                 mediamarkers.MediaMarkers
 	pls                playlists.Playlists
 	limiter            *rate.Sometimes
 	devExternalScanner bool

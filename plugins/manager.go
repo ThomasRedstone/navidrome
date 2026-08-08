@@ -16,6 +16,7 @@ import (
 	"github.com/navidrome/navidrome/conf"
 	"github.com/navidrome/navidrome/core/agents"
 	"github.com/navidrome/navidrome/core/lyrics"
+	"github.com/navidrome/navidrome/core/mediamarkers"
 	"github.com/navidrome/navidrome/core/scrobbler"
 	"github.com/navidrome/navidrome/core/sonic"
 	"github.com/navidrome/navidrome/log"
@@ -247,6 +248,10 @@ func (m *Manager) LoadLyricsProvider(name string) (lyrics.Provider, bool) {
 
 func (m *Manager) LoadSonicSimilarity(name string) (sonic.Provider, bool) {
 	return loadPlugin(m, name, CapabilitySonicSimilarity, newSonicSimilarityPlugin)
+}
+
+func (m *Manager) LoadMediaMarkerProvider(name string) (mediamarkers.Provider, bool) {
+	return loadPlugin(m, name, CapabilityMediaMarkerProvider, newMediaMarkerProviderPlugin)
 }
 
 func loadPlugin[T any](m *Manager, name string, cap Capability, newAdapter func(*plugin) T) (T, bool) {

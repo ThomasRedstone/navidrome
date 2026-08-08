@@ -12,6 +12,7 @@ import (
 	"github.com/navidrome/navidrome/conf"
 	"github.com/navidrome/navidrome/consts"
 	"github.com/navidrome/navidrome/core/artwork"
+	"github.com/navidrome/navidrome/core/mediamarkers"
 	"github.com/navidrome/navidrome/core/playlists"
 	"github.com/navidrome/navidrome/log"
 	"github.com/navidrome/navidrome/model"
@@ -23,6 +24,7 @@ type scannerImpl struct {
 	ds  model.DataStore
 	cw  artwork.CacheWarmer
 	pls playlists.Playlists
+	mm  mediamarkers.MediaMarkers
 }
 
 // scanState holds the state of an in-progress scan, to be passed to the various phases
@@ -136,7 +138,7 @@ func (s *scannerImpl) scanFolders(ctx context.Context, fullScan bool, targets []
 
 	err = run.Sequentially(
 		// Phase 1: Scan all libraries and import new/updated files
-		runPhase[*folderEntry](ctx, 1, createPhaseFolders(ctx, &state, s.ds, s.cw)),
+		runPhase[*folderEntry](ctx, 1, createPhaseFolders(ctx, &state, s.ds, s.cw, s.mm)),
 
 		// Phase 2: Process missing files, checking for moves
 		runPhase[*missingTracks](ctx, 2, createPhaseMissingTracks(ctx, &state, s.ds)),
