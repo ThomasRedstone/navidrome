@@ -61,6 +61,46 @@ var _ = Describe("ffmpeg", func() {
 		})
 	})
 
+	Describe("createSilenceDetectCommand", func() {
+		It("creates a valid command line with the given thresholds", func() {
+			args := createSilenceDetectCommand("/music/track.mp3", -30, 0.5)
+			Expect(args).To(Equal([]string{
+				"ffmpeg", "-nostdin", "-i", "/music/track.mp3",
+				"-af", "silencedetect=noise=-30dB:d=0.5",
+				"-f", "null", "-",
+			}))
+		})
+	})
+
+	Describe("parseSilenceDetectOutput", func() {
+		It("parses lead and trail silence spans from real-shaped ffmpeg log output", func() {
+			data := []byte(`[silencedetect @ 0x600000878000] silence_start: 0
+[silencedetect @ 0x600000878000] silence_end: 0.523 | silence_duration: 0.523
+size=N/A time=00:03:12.00 bitrate=N/A speed= 621x
+[silencedetect @ 0x600000878000] silence_start: 190.2
+[silencedetect @ 0x600000878000] silence_end: 192.041 | silence_duration: 1.841
+`)
+			spans := parseSilenceDetectOutput(data)
+			Expect(spans).To(Equal([]SilenceSpan{
+				{StartMs: 0, EndMs: 523},
+				{StartMs: 190200, EndMs: 192041},
+			}))
+		})
+
+		It("drops a trailing silence_start with no matching silence_end", func() {
+			data := []byte(`[silencedetect @ 0x1] silence_start: 12.5
+`)
+			spans := parseSilenceDetectOutput(data)
+			Expect(spans).To(BeEmpty())
+		})
+
+		It("returns no spans when nothing matches", func() {
+			data := []byte("frame=  100 fps=25.0 q=-1.0 Lsize=N/A time=00:00:04.00\n")
+			spans := parseSilenceDetectOutput(data)
+			Expect(spans).To(BeEmpty())
+		})
+	})
+
 	Describe("createProbeCommand", func() {
 		It("creates a valid command line", func() {
 			args := createProbeCommand(probeCmd, []string{"/music library/one.mp3", "/music library/two.mp3"})

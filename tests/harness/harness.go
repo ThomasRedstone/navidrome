@@ -168,6 +168,10 @@ func (NoopFFmpeg) ConvertAnimatedImage(context.Context, io.Reader, int, int) (io
 	return nil, errors.New("noop ffmpeg: convert animated image not supported")
 }
 
+func (NoopFFmpeg) DetectSilence(context.Context, string, float64, float64) ([]ffmpeg.SilenceSpan, error) {
+	return nil, errors.New("noop ffmpeg: detect silence not supported")
+}
+
 func (NoopFFmpeg) CmdPath() (string, error) { return "", nil }
 func (NoopFFmpeg) IsAvailable() bool        { return false }
 func (NoopFFmpeg) IsProbeAvailable() bool   { return true }

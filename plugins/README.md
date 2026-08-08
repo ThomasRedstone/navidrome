@@ -34,6 +34,7 @@ The plugin system is built on **[Extism](https://extism.org/)**, a cross-languag
   - [Task](#task)
   - [WebSocket](#websocket)
   - [Library](#library)
+  - [SilenceDetect](#silencedetect)
   - [Artwork](#artwork)
   - [SubsonicAPI](#subsonicapi)
   - [Config](#config)
@@ -743,6 +744,55 @@ fmt.Printf("Library: %s (%d songs)\n", library.Name, library.TotalSongs)
 libraries, err := host.LibraryGetAllLibraries()
 for _, lib := range libraries {
     fmt.Printf("Library: %s (%d songs)\n", lib.Name, lib.TotalSongs)
+}
+```
+
+### SilenceDetect
+
+Run ffmpeg's `silencedetect` filter against a library file on the host and get back the silence
+spans found. WASM plugins have no subprocess/exec capability, so this is the server-side
+equivalent of a plugin shelling out to `ffmpeg -af silencedetect` itself — useful for
+lead/trail-silence skip-marker detection without bundling an audio decoder into the plugin.
+
+**Manifest permission:**
+
+```json
+{
+  "permissions": {
+    "library": {
+      "reason": "Read track paths for silence analysis",
+      "filesystem": true
+    },
+    "silencedetect": {
+      "reason": "Run host ffmpeg silence detection on library files"
+    }
+  }
+}
+```
+
+`silencedetect` always requires `library` with `filesystem: true` declared alongside it
+(enforced at manifest validation time) — the plugin supplies a library ID and a path relative to
+that library's root (the same shape as a capability's `TrackInfo.Path`/`LibraryID`), never a
+host filesystem path.
+
+**Host functions:**
+
+| Function               | Parameters                                  | Returns                    |
+|-------------------------|----------------------------------------------|-----------------------------|
+| `silencedetect_detect`  | `libraryId, path, noiseDb?, durationMs?`      | Array of silence spans      |
+
+- `noiseDb` – silencedetect's "noise" threshold in dB (default: `-30`)
+- `durationMs` – minimum silence duration to report, in milliseconds (default: `500`)
+
+**Usage:**
+
+```go
+resp, err := host.SilenceDetectDetect(host.SilenceDetectRequest{
+    LibraryID: track.LibraryID,
+    Path:      track.Path,
+})
+for _, span := range resp.Spans {
+    fmt.Printf("silence: %dms - %dms\n", span.StartMs, span.EndMs)
 }
 ```
 

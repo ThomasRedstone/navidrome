@@ -178,6 +178,9 @@ type Permissions struct {
 	// Scheduler corresponds to the JSON schema field "scheduler".
 	Scheduler *SchedulerPermission `json:"scheduler,omitempty" yaml:"scheduler,omitempty" mapstructure:"scheduler,omitempty"`
 
+	// Silencedetect corresponds to the JSON schema field "silencedetect".
+	Silencedetect *SilenceDetectPermission `json:"silencedetect,omitempty" yaml:"silencedetect,omitempty" mapstructure:"silencedetect,omitempty"`
+
 	// Storage corresponds to the JSON schema field "storage".
 	Storage *StoragePermission `json:"storage,omitempty" yaml:"storage,omitempty" mapstructure:"storage,omitempty"`
 
@@ -197,6 +200,13 @@ type Permissions struct {
 // Scheduler service permissions for scheduling tasks
 type SchedulerPermission struct {
 	// Explanation for why scheduler access is needed
+	Reason *string `json:"reason,omitempty" yaml:"reason,omitempty" mapstructure:"reason,omitempty"`
+}
+
+// SilenceDetect service permissions for running host-side ffmpeg silence detection
+// on library files
+type SilenceDetectPermission struct {
+	// Explanation for why silence detection access is needed
 	Reason *string `json:"reason,omitempty" yaml:"reason,omitempty" mapstructure:"reason,omitempty"`
 }
 
