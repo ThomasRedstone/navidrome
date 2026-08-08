@@ -1,8 +1,10 @@
 package subsonic
 
 import (
+	"context"
 	"net/http"
 
+	. "github.com/Masterminds/squirrel"
 	"github.com/navidrome/navidrome/log"
 	"github.com/navidrome/navidrome/model"
 	"github.com/navidrome/navidrome/server/subsonic/responses"
@@ -131,6 +133,42 @@ func (api *Router) DeleteMediaMarker(r *http.Request) (*responses.Subsonic, erro
 	}
 
 	return newResponse(), nil
+}
+
+// mediaMarkersByItemID batch-loads markers for a set of tracks in a single query, grouped by
+// track ID, for attaching to a getSong/getAlbum/etc. response. A single query keeps this
+// additive to those endpoints rather than an N+1 per song in a list.
+func mediaMarkersByItemID(ctx context.Context, ds model.DataStore, itemIDs []string) map[string][]responses.MediaMarker {
+	if len(itemIDs) == 0 {
+		return nil
+	}
+	markers, err := ds.MediaMarker(ctx).GetAll(model.QueryOptions{Filters: Eq{"item_id": itemIDs}})
+	if err != nil {
+		log.Error(ctx, "Error loading media markers", "itemIds", itemIDs, err)
+		return nil
+	}
+	byItem := make(map[string]model.MediaMarkers)
+	for _, m := range markers {
+		byItem[m.ItemID] = append(byItem[m.ItemID], m)
+	}
+	result := make(map[string][]responses.MediaMarker, len(byItem))
+	for itemID, ms := range byItem {
+		result[itemID] = toResponseMediaMarkers(ms)
+	}
+	return result
+}
+
+// attachMediaMarkers sets MediaMarkers on each child from a batch-loaded map (see
+// mediaMarkersByItemID), skipping children with no markers so the field stays omitted.
+func attachMediaMarkers(children []responses.Child, byItemID map[string][]responses.MediaMarker) {
+	if len(byItemID) == 0 {
+		return
+	}
+	for i := range children {
+		if ms, ok := byItemID[children[i].Id]; ok {
+			children[i].MediaMarkers = ms
+		}
+	}
 }
 
 func toResponseMediaMarkers(markers model.MediaMarkers) []responses.MediaMarker {

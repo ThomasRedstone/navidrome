@@ -170,6 +170,7 @@ type Child struct {
 
 type OpenSubsonicChild struct {
 	// OpenSubsonic extensions
+	MediaMarkers       Array[MediaMarker]  `xml:"marker,omitempty"                  json:"mediaMarkers,omitempty"`
 	Played             *time.Time          `xml:"played,attr,omitempty"             json:"played,omitempty"`
 	BPM                int32               `xml:"bpm,attr,omitempty"                json:"bpm"`
 	Comment            string              `xml:"comment,attr,omitempty"            json:"comment"`

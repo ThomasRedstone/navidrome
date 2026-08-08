@@ -89,4 +89,49 @@ var _ = Describe("Media Marker Endpoints", Ordered, func() {
 		Expect(resp.Status).To(Equal(responses.StatusFailed))
 		Expect(resp.Error.Code).To(Equal(int32(responses.ErrorDataNotFound)))
 	})
+
+	Describe("Additive fields on getSong/getAlbum", Ordered, func() {
+		var markerID, albumID string
+
+		BeforeAll(func() {
+			songs, err := ds.MediaFile(ctx).GetAll(model.QueryOptions{Max: 1, Sort: "title"})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(songs).ToNot(BeEmpty())
+			albumID = songs[0].AlbumID
+
+			resp := doReq("createMediaMarker", "id", songID, "kind", "skip/lead_silence", "startMs", "0", "endMs", "300")
+			Expect(resp.Status).To(Equal(responses.StatusOK))
+			markerID = resp.MediaMarkers.Marker[0].ID
+		})
+
+		AfterAll(func() {
+			resp := doReq("deleteMediaMarker", "markerId", markerID)
+			Expect(resp.Status).To(Equal(responses.StatusOK))
+		})
+
+		It("includes the marker in getSong", func() {
+			resp := doReq("getSong", "id", songID)
+			Expect(resp.Status).To(Equal(responses.StatusOK))
+			Expect(resp.Song).ToNot(BeNil())
+			Expect(resp.Song.MediaMarkers).To(HaveLen(1))
+			Expect(resp.Song.MediaMarkers[0].ID).To(Equal(markerID))
+			Expect(resp.Song.MediaMarkers[0].Kind).To(Equal("skip/lead_silence"))
+		})
+
+		It("includes the marker in getAlbum's song list", func() {
+			resp := doReq("getAlbum", "id", albumID)
+			Expect(resp.Status).To(Equal(responses.StatusOK))
+			Expect(resp.AlbumWithSongsID3).ToNot(BeNil())
+
+			var found bool
+			for _, s := range resp.AlbumWithSongsID3.Song {
+				if s.Id == songID {
+					found = true
+					Expect(s.MediaMarkers).To(HaveLen(1))
+					Expect(s.MediaMarkers[0].ID).To(Equal(markerID))
+				}
+			}
+			Expect(found).To(BeTrue())
+		})
+	})
 })
