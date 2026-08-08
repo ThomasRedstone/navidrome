@@ -54,11 +54,19 @@ func (s *controller) getScanner() scanner {
 	return &scannerImpl{ds: s.ds, cw: s.cw, pls: s.pls, mm: s.mm}
 }
 
-// CallScan starts an in-process scan of specific library/folder pairs.
-// If targets is empty, it scans all libraries.
-// This is meant to be called from the command line (see cmd/scan.go), which doesn't load the
-// plugin system, so no MediaMarkerProvider plugins run for this path.
-func CallScan(ctx context.Context, ds model.DataStore, pls playlists.Playlists, fullScan bool, targets []model.ScanTarget) (<-chan *ProgressInfo, error) {
+// CallScan starts an in-process scan of specific library/folder pairs. If targets is empty, it
+// scans all libraries.
+//
+// This is meant to be called from the command line (see cmd/scan.go) — which, because
+// conf.Server.DevExternalScanner defaults to true, is actually the scan path used for EVERY
+// real scan in normal operation: scannerExternal (scanner/external.go) re-execs the binary as
+// `<exe> scan --subprocess` for every trigger (startup, watcher, HTTP-triggered, scheduled),
+// and that subprocess's cmd/scan.go runScanner() calls this function. So mm must be a real,
+// plugin-backed mediamarkers.MediaMarkers when the caller has plugins available — the caller is
+// responsible for constructing and starting a plugins.Manager and passing mediamarkers.New(mgr);
+// pass mediamarkers.New(nil) only when no plugin system is available (e.g. a pure library CLI
+// caller with no plugin manager at all).
+func CallScan(ctx context.Context, ds model.DataStore, pls playlists.Playlists, mm mediamarkers.MediaMarkers, fullScan bool, targets []model.ScanTarget) (<-chan *ProgressInfo, error) {
 	release, err := lockScan(ctx)
 	if err != nil {
 		return nil, err
@@ -69,7 +77,7 @@ func CallScan(ctx context.Context, ds model.DataStore, pls playlists.Playlists, 
 	progress := make(chan *ProgressInfo, 100)
 	go func() {
 		defer close(progress)
-		scanner := &scannerImpl{ds: ds, cw: artwork.NoopCacheWarmer(), pls: pls, mm: mediamarkers.New(nil)}
+		scanner := &scannerImpl{ds: ds, cw: artwork.NoopCacheWarmer(), pls: pls, mm: mm}
 		scanner.scanFolders(ctx, fullScan, targets, progress)
 	}()
 	return progress, nil
