@@ -35,6 +35,7 @@
 //! - [`artwork`] - provides artwork public URL generation capabilities for plugins.
 //! - [`cache`] - provides in-memory TTL-based caching capabilities for plugins.
 //! - [`config`] - provides access to plugin configuration values.
+//! - [`fingerprint`] - computes an audio fingerprint for a library file on behalf of a plugin,
 //! - [`http`] - provides outbound HTTP request capabilities for plugins.
 //! - [`kvstore`] - provides persistent key-value storage for plugins.
 //! - [`library`] - provides access to music library metadata for plugins.
@@ -66,6 +67,13 @@ mod nd_host_config;
 /// provides access to plugin configuration values.
 pub mod config {
     pub use super::nd_host_config::*;
+}
+
+#[doc(hidden)]
+mod nd_host_fingerprint;
+/// computes an audio fingerprint for a library file on behalf of a plugin,
+pub mod fingerprint {
+    pub use super::nd_host_fingerprint::*;
 }
 
 #[doc(hidden)]

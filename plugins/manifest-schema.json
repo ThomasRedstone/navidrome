@@ -98,6 +98,9 @@
         },
         "silencedetect": {
           "$ref": "#/$defs/SilenceDetectPermission"
+        },
+        "fingerprint": {
+          "$ref": "#/$defs/FingerprintPermission"
         }
       }
     },
@@ -259,6 +262,17 @@
         "reason": {
           "type": "string",
           "description": "Explanation for why silence detection access is needed"
+        }
+      }
+    },
+    "FingerprintPermission": {
+      "type": "object",
+      "description": "Fingerprint service permissions for computing host-side Chromaprint fingerprints of library files",
+      "additionalProperties": false,
+      "properties": {
+        "reason": {
+          "type": "string",
+          "description": "Explanation for why fingerprinting access is needed"
         }
       }
     },

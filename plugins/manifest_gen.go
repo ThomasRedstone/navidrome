@@ -45,6 +45,13 @@ func (j *ConfigDefinition) UnmarshalJSON(value []byte) error {
 	return nil
 }
 
+// Fingerprint service permissions for computing host-side Chromaprint fingerprints
+// of library files
+type FingerprintPermission struct {
+	// Explanation for why fingerprinting access is needed
+	Reason *string `json:"reason,omitempty" yaml:"reason,omitempty" mapstructure:"reason,omitempty"`
+}
+
 // HTTP access permissions for a plugin
 type HTTPPermission struct {
 	// Explanation for why HTTP access is needed
@@ -162,6 +169,9 @@ type Permissions struct {
 
 	// Cache corresponds to the JSON schema field "cache".
 	Cache *CachePermission `json:"cache,omitempty" yaml:"cache,omitempty" mapstructure:"cache,omitempty"`
+
+	// Fingerprint corresponds to the JSON schema field "fingerprint".
+	Fingerprint *FingerprintPermission `json:"fingerprint,omitempty" yaml:"fingerprint,omitempty" mapstructure:"fingerprint,omitempty"`
 
 	// Http corresponds to the JSON schema field "http".
 	Http *HTTPPermission `json:"http,omitempty" yaml:"http,omitempty" mapstructure:"http,omitempty"`
