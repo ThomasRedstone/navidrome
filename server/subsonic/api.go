@@ -148,6 +148,15 @@ func (api *Router) routes() http.Handler {
 			h(r, "reportPlayback", api.ReportPlayback)
 		})
 		r.Group(func(r chi.Router) {
+			h(r, "getMediaMarkers", api.GetMediaMarkers)
+			r.Group(func(r chi.Router) {
+				r.Use(adminOnly)
+				h(r, "createMediaMarker", api.CreateMediaMarker)
+				h(r, "updateMediaMarker", api.UpdateMediaMarker)
+				h(r, "deleteMediaMarker", api.DeleteMediaMarker)
+			})
+		})
+		r.Group(func(r chi.Router) {
 			r.Use(getPlayer(api.players))
 			h(r, "getPlaylists", api.GetPlaylists)
 			h(r, "getPlaylist", api.GetPlaylist)
