@@ -1,0 +1,155 @@
+version: v1-draft
+exports:
+    nd_get_media_markers:
+        description: GetMediaMarkers returns any markers this plugin can find for the given track.
+        input:
+            $ref: '#/components/schemas/GetMediaMarkersRequest'
+            contentType: application/json
+        output:
+            $ref: '#/components/schemas/GetMediaMarkersResponse'
+            contentType: application/json
+components:
+    schemas:
+        GetMediaMarkersRequest:
+            description: GetMediaMarkersRequest contains the track information markers are requested for.
+            properties:
+                track:
+                    $ref: '#/components/schemas/TrackInfo'
+            required:
+                - track
+        GetMediaMarkersResponse:
+            description: GetMediaMarkersResponse contains the markers found by the plugin, if any.
+            properties:
+                markers:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/MediaMarkerInfo'
+            required:
+                - markers
+        MediaMarkerInfo:
+            description: |-
+                MediaMarkerInfo is a single time-coded marker returned by a plugin. Kind is an open,
+                namespaced string (e.g. "skip/lead_silence", "sample/amen-break"), not a fixed enum — see
+                the media-time-markers repo's KINDS.md for the registry. EndMs is omitted for a point-in-time
+                marker (e.g. "sample/wilhelm-scream") rather than a span.
+            properties:
+                kind:
+                    type: string
+                    description: Kind is the marker's namespaced type, e.g. "skip/lead_silence".
+                startMs:
+                    type: integer
+                    format: int64
+                    description: StartMs is the marker's start offset in milliseconds.
+                endMs:
+                    type: integer
+                    format: int64
+                    description: EndMs is the marker's end offset in milliseconds. Omitted for a point-in-time marker.
+                confidence:
+                    type: number
+                    format: float
+                    description: Confidence is an optional 0-1 score for anything auto-detected or community-sourced.
+            required:
+                - kind
+                - startMs
+        TrackInfo:
+            description: TrackInfo contains track metadata.
+            properties:
+                id:
+                    type: string
+                    description: ID is the internal Navidrome track ID.
+                title:
+                    type: string
+                    description: Title is the track title.
+                album:
+                    type: string
+                    description: Album is the album name.
+                artist:
+                    type: string
+                    description: Artist is the formatted artist name for display (e.g., "Artist1 • Artist2").
+                albumArtist:
+                    type: string
+                    description: AlbumArtist is the formatted album artist name for display.
+                artists:
+                    type: array
+                    description: Artists is the list of track artists.
+                    items:
+                        $ref: '#/components/schemas/ArtistRef'
+                albumArtists:
+                    type: array
+                    description: AlbumArtists is the list of album artists.
+                    items:
+                        $ref: '#/components/schemas/ArtistRef'
+                duration:
+                    type: number
+                    format: float
+                    description: Duration is the track duration in seconds.
+                trackNumber:
+                    type: integer
+                    format: int32
+                    description: TrackNumber is the track number on the album.
+                discNumber:
+                    type: integer
+                    format: int32
+                    description: DiscNumber is the disc number.
+                mbzRecordingId:
+                    type: string
+                    description: MBZRecordingID is the MusicBrainz recording ID.
+                mbzAlbumId:
+                    type: string
+                    description: MBZAlbumID is the MusicBrainz album/release ID.
+                mbzReleaseGroupId:
+                    type: string
+                    description: MBZReleaseGroupID is the MusicBrainz release group ID.
+                mbzReleaseTrackId:
+                    type: string
+                    description: MBZReleaseTrackID is the MusicBrainz release track ID.
+                libraryId:
+                    type: integer
+                    format: int32
+                    description: |-
+                        LibraryID is the ID of the library the track belongs to.
+                        Only included if the plugin has library permission with filesystem access for the track's library.
+                path:
+                    type: string
+                    description: |-
+                        Path is the full path to the track file, relative to the library root.
+                        Only included if the plugin has library permission with filesystem access for the track's library.
+            required:
+                - id
+                - title
+                - album
+                - artist
+                - albumArtist
+                - artists
+                - albumArtists
+                - duration
+                - trackNumber
+                - discNumber
+        ArtistRef:
+            description: |-
+                ArtistRef is the minimal information a plugin returns for Navidrome to match an
+                artist against the library. It is a reference, not a full artist entity: it
+                carries only matching keys (name and optional internal/MusicBrainz IDs) plus a
+                few projection fields used when describing a track's participants, never
+                descriptive data such as biographies or images.
+            properties:
+                id:
+                    type: string
+                    description: ID is the internal Navidrome artist ID (if known).
+                name:
+                    type: string
+                    description: Name is the artist name.
+                mbid:
+                    type: string
+                    description: MBID is the MusicBrainz ID for the artist.
+                sortName:
+                    type: string
+                    description: SortName is the artist name used for sorting (if known).
+                role:
+                    type: string
+                    description: Role is the participation category (e.g. "artist", "composer", "performer").
+                subRole:
+                    type: string
+                    description: SubRole is a specialization within Role (e.g. the instrument for a performer).
+            required:
+                - name
