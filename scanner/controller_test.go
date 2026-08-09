@@ -7,6 +7,7 @@ import (
 	"github.com/navidrome/navidrome/consts"
 	"github.com/navidrome/navidrome/core"
 	"github.com/navidrome/navidrome/core/artwork"
+	"github.com/navidrome/navidrome/core/mediamarkers"
 	"github.com/navidrome/navidrome/core/metrics"
 	"github.com/navidrome/navidrome/core/playlists"
 	"github.com/navidrome/navidrome/db"
@@ -32,7 +33,7 @@ var _ = Describe("Controller", func() {
 			DeferCleanup(configtest.SetupConfig())
 			ds = &tests.MockDataStore{RealDS: persistence.New(db.Db())}
 			ds.MockedProperty = &tests.MockedPropertyRepo{}
-			ctrl = scanner.New(ctx, ds, artwork.NoopCacheWarmer(), events.NoopBroker(), playlists.NewPlaylists(ds, core.NewImageUploadService()), metrics.NewNoopInstance())
+			ctrl = scanner.New(ctx, ds, artwork.NoopCacheWarmer(), events.NoopBroker(), playlists.NewPlaylists(ds, core.NewImageUploadService()), metrics.NewNoopInstance(), mediamarkers.New(nil))
 		})
 
 		It("includes last scan error", func() {

@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -44,12 +45,22 @@ type AudioProbeResult struct {
 	Channels   int    `json:"channels"`
 }
 
+// SilenceSpan is a detected span of silence within a track, in milliseconds.
+type SilenceSpan struct {
+	StartMs int64
+	EndMs   int64
+}
+
 type FFmpeg interface {
 	Transcode(ctx context.Context, opts TranscodeOptions) (io.ReadCloser, error)
 	ExtractImage(ctx context.Context, path string) (io.ReadCloser, error)
 	ConvertAnimatedImage(ctx context.Context, reader io.Reader, maxSize int, quality int) (io.ReadCloser, error)
 	Probe(ctx context.Context, files []string) (string, error)
 	ProbeAudioStream(ctx context.Context, filePath string) (*AudioProbeResult, error)
+	// DetectSilence runs ffmpeg's silencedetect filter against filePath and returns every
+	// detected silence span. noiseDB is the "noise" threshold in dB (0 uses a sane default);
+	// minDurationSec is the minimum span length to report (0 uses a sane default).
+	DetectSilence(ctx context.Context, filePath string, noiseDB, minDurationSec float64) ([]SilenceSpan, error)
 	CmdPath() (string, error)
 	IsAvailable() bool
 	IsProbeAvailable() bool
@@ -69,6 +80,9 @@ const (
 	extractImageCmd     = "ffmpeg -i %s -map 0:v -map -0:V -vcodec copy -f image2pipe -"
 	probeCmd            = "ffmpeg %s -f ffmetadata"
 	probeAudioStreamCmd = "ffprobe -v error -select_streams a:0 -print_format json -show_streams -show_format %s"
+
+	silenceDefaultNoiseDB        = -30.0
+	silenceDefaultMinDurationSec = 0.5
 )
 
 type ffmpeg struct{}
@@ -175,6 +189,30 @@ func (e *ffmpeg) ProbeAudioStream(ctx context.Context, filePath string) (*AudioP
 		return nil, &ProbeError{Path: filePath, Reason: err.Error(), err: err}
 	}
 	return result, nil
+}
+
+func (e *ffmpeg) DetectSilence(ctx context.Context, filePath string, noiseDB, minDurationSec float64) ([]SilenceSpan, error) {
+	if _, err := ffmpegCmd(); err != nil {
+		return nil, err
+	}
+	if err := fileExists(filePath); err != nil {
+		return nil, &ProbeError{Path: filePath, Reason: fileAccessReason(err),
+			NotFound: errors.Is(err, fs.ErrNotExist), err: err}
+	}
+	if noiseDB == 0 {
+		noiseDB = silenceDefaultNoiseDB
+	}
+	if minDurationSec <= 0 {
+		minDurationSec = silenceDefaultMinDurationSec
+	}
+	args := createSilenceDetectCommand(filePath, noiseDB, minDurationSec)
+	log.Trace(ctx, "Executing ffmpeg silencedetect command", "args", args)
+	cmd := exec.CommandContext(ctx, args[0], args[1:]...) // #nosec
+	// silencedetect writes its findings to stderr regardless of the (null) output, and a
+	// nonzero exit for an otherwise-decodable file isn't expected — but tolerate one the same
+	// way Probe does, since we still want to parse whatever log lines came out.
+	output, _ := cmd.CombinedOutput()
+	return parseSilenceDetectOutput(output), nil
 }
 
 // ProbeError reports an ffprobe failure. Reason is a path-free message safe to
@@ -600,6 +638,49 @@ func createProbeCommand(cmd string, inputs []string) []string {
 		}
 	}
 	return args
+}
+
+func createSilenceDetectCommand(filePath string, noiseDB, minDurationSec float64) []string {
+	cmdPath, _ := ffmpegCmd()
+	return []string{
+		cmdPath, "-nostdin", "-i", filePath,
+		"-af", fmt.Sprintf("silencedetect=noise=%gdB:d=%g", noiseDB, minDurationSec),
+		"-f", "null", "-",
+	}
+}
+
+var (
+	silenceStartRE = regexp.MustCompile(`silence_start:\s*(-?[\d.]+)`)
+	silenceEndRE   = regexp.MustCompile(`silence_end:\s*(-?[\d.]+)`)
+)
+
+// parseSilenceDetectOutput scans ffmpeg's stderr log for silencedetect filter lines like:
+//
+//	[silencedetect @ 0x...] silence_start: 12.34
+//	[silencedetect @ 0x...] silence_end: 45.6 | silence_duration: 33.26
+//
+// An unmatched trailing silence_start (silence running to end-of-file, no silence_end logged)
+// is dropped rather than guessed at — ffmpeg doesn't report a duration for it either.
+func parseSilenceDetectOutput(output []byte) []SilenceSpan {
+	var spans []SilenceSpan
+	var startSec float64
+	haveStart := false
+	for _, line := range strings.Split(string(output), "\n") {
+		if m := silenceStartRE.FindStringSubmatch(line); m != nil {
+			startSec, _ = strconv.ParseFloat(m[1], 64)
+			haveStart = true
+			continue
+		}
+		if m := silenceEndRE.FindStringSubmatch(line); m != nil && haveStart {
+			endSec, _ := strconv.ParseFloat(m[1], 64)
+			spans = append(spans, SilenceSpan{
+				StartMs: int64(startSec * 1000),
+				EndMs:   int64(endSec * 1000),
+			})
+			haveStart = false
+		}
+	}
+	return spans
 }
 
 func fixCmd(cmd string) []string {

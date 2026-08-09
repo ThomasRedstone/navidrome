@@ -15,6 +15,7 @@ import (
 	"github.com/navidrome/navidrome/conf/configtest"
 	"github.com/navidrome/navidrome/core"
 	"github.com/navidrome/navidrome/core/artwork"
+	"github.com/navidrome/navidrome/core/mediamarkers"
 	"github.com/navidrome/navidrome/core/metrics"
 	"github.com/navidrome/navidrome/core/playlists"
 	"github.com/navidrome/navidrome/core/storage/storagetest"
@@ -276,7 +277,7 @@ var _ = BeforeSuite(func() {
 
 	buildTestFS()
 	s := scanner.New(ctx, initDS, artwork.NoopCacheWarmer(), events.NoopBroker(),
-		playlists.NewPlaylists(initDS, core.NewImageUploadService()), metrics.NewNoopInstance())
+		playlists.NewPlaylists(initDS, core.NewImageUploadService()), metrics.NewNoopInstance(), mediamarkers.New(nil))
 	_, err = s.ScanAll(ctx, true)
 	Expect(err).ToNot(HaveOccurred())
 

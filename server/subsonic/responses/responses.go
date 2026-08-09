@@ -63,6 +63,7 @@ type Subsonic struct {
 	PlayQueueByIndex       *PlayQueueByIndex       `xml:"playQueueByIndex,omitempty" json:"playQueueByIndex,omitempty"`
 	TranscodeDecision      *TranscodeDecision      `xml:"transcodeDecision,omitempty"       json:"transcodeDecision,omitempty"`
 	SonicMatches           *Array[SonicMatch]      `xml:"sonicMatch,omitempty"              json:"sonicMatch,omitempty"`
+	MediaMarkers           *MediaMarkers           `xml:"mediaMarkers,omitempty"            json:"mediaMarkers,omitempty"`
 }
 
 const (
@@ -169,6 +170,7 @@ type Child struct {
 
 type OpenSubsonicChild struct {
 	// OpenSubsonic extensions
+	MediaMarkers       Array[MediaMarker]  `xml:"marker,omitempty"                  json:"mediaMarkers,omitempty"`
 	Played             *time.Time          `xml:"played,attr,omitempty"             json:"played,omitempty"`
 	BPM                int32               `xml:"bpm,attr,omitempty"                json:"bpm"`
 	Comment            string              `xml:"comment,attr,omitempty"            json:"comment"`
@@ -683,6 +685,21 @@ type TranscodeDecision struct {
 	TranscodeParams  string         `xml:"transcodeParams,attr,omitempty"   json:"transcodeParams,omitempty"`
 	SourceStream     *StreamDetails `xml:"sourceStream,omitempty"           json:"sourceStream,omitempty"`
 	TranscodeStream  *StreamDetails `xml:"transcodeStream,omitempty"        json:"transcodeStream,omitempty"`
+}
+
+// MediaMarker is a time-coded span (or point, when EndMs is zero) on a track — e.g. a spoken
+// intro, or lead/trail silence around a hidden track.
+type MediaMarker struct {
+	ID         string  `xml:"id,attr"                   json:"id"`
+	Kind       string  `xml:"kind,attr"                 json:"kind"`
+	StartMs    int64   `xml:"startMs,attr"               json:"startMs"`
+	EndMs      int64   `xml:"endMs,attr,omitempty"       json:"endMs,omitempty"`
+	Source     string  `xml:"source,attr"                json:"source"`
+	Confidence float64 `xml:"confidence,attr,omitempty"  json:"confidence,omitempty"`
+}
+
+type MediaMarkers struct {
+	Marker []MediaMarker `xml:"marker,omitempty" json:"marker,omitempty"`
 }
 
 // StreamDetails describes audio stream properties for transcoding decisions

@@ -67,6 +67,23 @@ func (m *Manifest) Validate() error {
 		}
 	}
 
+	// SilenceDetect reads and analyzes library audio files on the plugin's behalf, so it
+	// requires filesystem-scoped library access, the same permission a plugin would need to
+	// do this itself if it could shell out to ffmpeg.
+	if m.Permissions != nil && m.Permissions.Silencedetect != nil {
+		if m.Permissions.Library == nil || !m.Permissions.Library.Filesystem {
+			return fmt.Errorf("'silencedetect' permission requires 'library' permission with 'filesystem: true' to be declared")
+		}
+	}
+
+	// Fingerprint reads library audio files on the plugin's behalf, same reasoning as
+	// SilenceDetect above.
+	if m.Permissions != nil && m.Permissions.Fingerprint != nil {
+		if m.Permissions.Library == nil || !m.Permissions.Library.Filesystem {
+			return fmt.Errorf("'fingerprint' permission requires 'library' permission with 'filesystem: true' to be declared")
+		}
+	}
+
 	// Validate config schema if present
 	if m.Config != nil && m.Config.Schema != nil {
 		if err := validateConfigSchema(m.Config.Schema); err != nil {

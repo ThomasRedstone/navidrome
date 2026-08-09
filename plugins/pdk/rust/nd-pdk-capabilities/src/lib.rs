@@ -9,6 +9,7 @@ pub use nd_pdk_types as types;
 
 pub mod lifecycle;
 pub mod lyrics;
+pub mod media_marker_provider;
 pub mod metadata;
 pub mod scheduler;
 pub mod scrobbler;

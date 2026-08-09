@@ -75,6 +75,7 @@ type configOptions struct {
 	IgnoredArticles                 string
 	IndexGroups                     string
 	FFmpegPath                      string
+	FpcalcPath                      string
 	MPVPath                         string
 	MPVCmdTemplate                  string
 	CoverArtPriority                string

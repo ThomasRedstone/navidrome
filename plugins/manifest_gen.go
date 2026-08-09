@@ -45,6 +45,13 @@ func (j *ConfigDefinition) UnmarshalJSON(value []byte) error {
 	return nil
 }
 
+// Fingerprint service permissions for computing host-side Chromaprint fingerprints
+// of library files
+type FingerprintPermission struct {
+	// Explanation for why fingerprinting access is needed
+	Reason *string `json:"reason,omitempty" yaml:"reason,omitempty" mapstructure:"reason,omitempty"`
+}
+
 // HTTP access permissions for a plugin
 type HTTPPermission struct {
 	// Explanation for why HTTP access is needed
@@ -163,6 +170,9 @@ type Permissions struct {
 	// Cache corresponds to the JSON schema field "cache".
 	Cache *CachePermission `json:"cache,omitempty" yaml:"cache,omitempty" mapstructure:"cache,omitempty"`
 
+	// Fingerprint corresponds to the JSON schema field "fingerprint".
+	Fingerprint *FingerprintPermission `json:"fingerprint,omitempty" yaml:"fingerprint,omitempty" mapstructure:"fingerprint,omitempty"`
+
 	// Http corresponds to the JSON schema field "http".
 	Http *HTTPPermission `json:"http,omitempty" yaml:"http,omitempty" mapstructure:"http,omitempty"`
 
@@ -177,6 +187,9 @@ type Permissions struct {
 
 	// Scheduler corresponds to the JSON schema field "scheduler".
 	Scheduler *SchedulerPermission `json:"scheduler,omitempty" yaml:"scheduler,omitempty" mapstructure:"scheduler,omitempty"`
+
+	// Silencedetect corresponds to the JSON schema field "silencedetect".
+	Silencedetect *SilenceDetectPermission `json:"silencedetect,omitempty" yaml:"silencedetect,omitempty" mapstructure:"silencedetect,omitempty"`
 
 	// Storage corresponds to the JSON schema field "storage".
 	Storage *StoragePermission `json:"storage,omitempty" yaml:"storage,omitempty" mapstructure:"storage,omitempty"`
@@ -197,6 +210,13 @@ type Permissions struct {
 // Scheduler service permissions for scheduling tasks
 type SchedulerPermission struct {
 	// Explanation for why scheduler access is needed
+	Reason *string `json:"reason,omitempty" yaml:"reason,omitempty" mapstructure:"reason,omitempty"`
+}
+
+// SilenceDetect service permissions for running host-side ffmpeg silence detection
+// on library files
+type SilenceDetectPermission struct {
+	// Explanation for why silence detection access is needed
 	Reason *string `json:"reason,omitempty" yaml:"reason,omitempty" mapstructure:"reason,omitempty"`
 }
 

@@ -7,6 +7,7 @@ import (
 	"github.com/navidrome/navidrome/core/ffmpeg"
 	"github.com/navidrome/navidrome/core/lyrics"
 	"github.com/navidrome/navidrome/core/matcher"
+	"github.com/navidrome/navidrome/core/mediamarkers"
 	"github.com/navidrome/navidrome/core/metrics"
 	"github.com/navidrome/navidrome/core/playback"
 	"github.com/navidrome/navidrome/core/playlists"
@@ -36,4 +37,5 @@ var Set = wire.NewSet(
 	playback.GetInstance,
 	metrics.GetInstance,
 	lyrics.NewLyrics,
+	mediamarkers.New,
 )

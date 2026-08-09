@@ -21,6 +21,7 @@ import (
 	"github.com/navidrome/navidrome/core/auth"
 	"github.com/navidrome/navidrome/core/external"
 	"github.com/navidrome/navidrome/core/lyrics"
+	"github.com/navidrome/navidrome/core/mediamarkers"
 	"github.com/navidrome/navidrome/core/metrics"
 	"github.com/navidrome/navidrome/core/playback"
 	"github.com/navidrome/navidrome/core/playlists"
@@ -417,7 +418,7 @@ func setupTestDB() {
 	streamerSpy = &harness.SpyStreamer{}
 	decider := stream.NewTranscodeDecider(ds, harness.NoopFFmpeg{})
 	s := scanner.New(ctx, ds, artwork.NoopCacheWarmer(), events.NoopBroker(),
-		playlists.NewPlaylists(ds, core.NewImageUploadService()), metrics.NewNoopInstance())
+		playlists.NewPlaylists(ds, core.NewImageUploadService()), metrics.NewNoopInstance(), mediamarkers.New(nil))
 	router = subsonic.New(
 		ds,
 		noopArtwork{},

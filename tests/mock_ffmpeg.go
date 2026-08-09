@@ -17,11 +17,15 @@ func NewMockFFmpeg(data string) *MockFFmpeg {
 
 type MockFFmpeg struct {
 	io.Reader
-	lock             sync.Mutex
-	closed           atomic.Bool
-	Error            error
-	ProbeAudioResult *ffmpeg.AudioProbeResult
-	ProbeAvailable   bool
+	lock                   sync.Mutex
+	closed                 atomic.Bool
+	Error                  error
+	ProbeAudioResult       *ffmpeg.AudioProbeResult
+	ProbeAvailable         bool
+	SilenceSpans           []ffmpeg.SilenceSpan
+	LastDetectSilencePath  string
+	LastDetectSilenceNoise float64
+	LastDetectSilenceMinMs float64
 }
 
 func (ff *MockFFmpeg) IsAvailable() bool {
@@ -68,6 +72,16 @@ func (ff *MockFFmpeg) ProbeAudioStream(context.Context, string) (*ffmpeg.AudioPr
 		return nil, ff.Error
 	}
 	return ff.ProbeAudioResult, nil
+}
+
+func (ff *MockFFmpeg) DetectSilence(_ context.Context, path string, noiseDB, minDurationSec float64) ([]ffmpeg.SilenceSpan, error) {
+	ff.LastDetectSilencePath = path
+	ff.LastDetectSilenceNoise = noiseDB
+	ff.LastDetectSilenceMinMs = minDurationSec
+	if ff.Error != nil {
+		return nil, ff.Error
+	}
+	return ff.SilenceSpans, nil
 }
 
 func (ff *MockFFmpeg) CmdPath() (string, error) {

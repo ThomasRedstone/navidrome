@@ -38,11 +38,13 @@ The following host services are available:
   - Artwork: provides artwork public URL generation capabilities for plugins.
   - Cache: provides in-memory TTL-based caching capabilities for plugins.
   - Config: provides access to plugin configuration values.
+  - Fingerprint: computes an audio fingerprint for a library file on behalf of a plugin,
   - HTTP: provides outbound HTTP request capabilities for plugins.
   - KVStore: provides persistent key-value storage for plugins.
   - Library: provides access to music library metadata for plugins.
   - Matcher: resolves externally-obtained songs to local library tracks,
   - Scheduler: provides task scheduling capabilities for plugins.
+  - SilenceDetect: runs ffmpeg's silencedetect filter on a library file on behalf of a
   - Storage: provides access to a plugin-specific directory with read/write permissions
   - SubsonicAPI: provides access to Navidrome's Subsonic API from plugins.
   - Task: provides persistent task queues for plugins.

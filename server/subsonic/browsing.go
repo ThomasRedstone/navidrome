@@ -256,7 +256,9 @@ func (api *Router) GetSong(r *http.Request) (*responses.Subsonic, error) {
 	}
 
 	response := newResponse()
-	response.Song = new(childFromMediaFile(ctx, *mf))
+	songs := []responses.Child{childFromMediaFile(ctx, *mf)}
+	attachMediaMarkers(songs, mediaMarkersByItemID(ctx, api.ds, []string{mf.ID}))
+	response.Song = &songs[0]
 	return response, nil
 }
 
@@ -465,6 +467,7 @@ func (api *Router) buildAlbumDirectory(ctx context.Context, album *model.Album) 
 	}
 
 	dir.Child = slice.MapWithArg(mfs, ctx, childFromMediaFile)
+	attachMediaMarkers(dir.Child, mediaMarkersByItemID(ctx, api.ds, slice.Map(mfs, func(mf model.MediaFile) string { return mf.ID })))
 	return dir, nil
 }
 
@@ -472,5 +475,6 @@ func (api *Router) buildAlbum(ctx context.Context, album *model.Album, mfs model
 	dir := &responses.AlbumWithSongsID3{}
 	dir.AlbumID3 = buildAlbumID3(ctx, *album)
 	dir.Song = slice.MapWithArg(mfs, ctx, childFromMediaFile)
+	attachMediaMarkers(dir.Song, mediaMarkersByItemID(ctx, api.ds, slice.Map(mfs, func(mf model.MediaFile) string { return mf.ID })))
 	return dir
 }

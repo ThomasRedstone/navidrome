@@ -8,6 +8,7 @@ import (
 	"maps"
 	"path"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/navidrome/navidrome/conf"
 	"github.com/navidrome/navidrome/consts"
 	"github.com/navidrome/navidrome/core/artwork"
+	"github.com/navidrome/navidrome/core/mediamarkers"
 	"github.com/navidrome/navidrome/core/storage"
 	"github.com/navidrome/navidrome/log"
 	"github.com/navidrome/navidrome/model"
@@ -26,7 +28,7 @@ import (
 	"github.com/navidrome/navidrome/utils/slice"
 )
 
-func createPhaseFolders(ctx context.Context, state *scanState, ds model.DataStore, cw artwork.CacheWarmer) *phaseFolders {
+func createPhaseFolders(ctx context.Context, state *scanState, ds model.DataStore, cw artwork.CacheWarmer, mm mediamarkers.MediaMarkers) *phaseFolders {
 	var jobs []*scanJob
 
 	// Create scan jobs for all libraries
@@ -46,7 +48,7 @@ func createPhaseFolders(ctx context.Context, state *scanState, ds model.DataStor
 		jobs = append(jobs, job)
 	}
 
-	return &phaseFolders{jobs: jobs, ctx: ctx, ds: ds, state: state}
+	return &phaseFolders{jobs: jobs, ctx: ctx, ds: ds, state: state, mm: mm}
 }
 
 type scanJob struct {
@@ -128,6 +130,7 @@ type phaseFolders struct {
 	ctx              context.Context
 	state            *scanState
 	prevAlbumPIDConf string
+	mm               mediamarkers.MediaMarkers
 }
 
 func (p *phaseFolders) description() string {
@@ -326,6 +329,54 @@ func (p *phaseFolders) createArtistsFromMediaFiles(entry *folderEntry) {
 	entry.artists = participants.AllArtists()
 }
 
+// clearPluginMediaMarkers deletes a track's existing plugin-sourced markers, leaving manually
+// entered ones (source "manual") untouched.
+func clearPluginMediaMarkers(repo model.MediaMarkerRepository, trackID string) error {
+	existing, err := repo.GetByItemID(trackID)
+	if err != nil {
+		return err
+	}
+	for _, m := range existing {
+		if !strings.HasPrefix(m.Source, model.MediaMarkerSourcePluginPrefix) {
+			continue
+		}
+		if err := repo.Delete(m.ID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// persistMediaMarkers calls every installed MediaMarkerProvider plugin for each new/changed
+// track in the entry, once tracks have real IDs (i.e. after persistChanges' transaction has
+// committed them), and saves whatever markers they find. Markers are looked up at scan time,
+// not on-demand, so they're ready the first time a client requests the track. A track's old
+// plugin-sourced markers are cleared first so re-scanning a changed track doesn't accumulate
+// duplicates; manually entered markers are left alone.
+func (p *phaseFolders) persistMediaMarkers(entry *folderEntry) {
+	if p.mm == nil {
+		return
+	}
+	markerRepo := p.ds.MediaMarker(p.ctx)
+	for i := range entry.tracks {
+		track := &entry.tracks[i]
+		found, err := p.mm.GetMarkers(p.ctx, track)
+		if err != nil {
+			log.Warn(p.ctx, "Scanner: Error fetching media markers", "track", track.Path, err)
+			continue
+		}
+		if err := clearPluginMediaMarkers(markerRepo, track.ID); err != nil {
+			log.Error(p.ctx, "Scanner: Error clearing old media markers", "track", track.Path, err)
+			continue
+		}
+		for j := range found {
+			if err := markerRepo.Put(&found[j]); err != nil {
+				log.Error(p.ctx, "Scanner: Error persisting media marker to DB", "track", track.Path, "marker", found[j], err)
+			}
+		}
+	}
+}
+
 func (p *phaseFolders) persistChanges(entry *folderEntry) (*folderEntry, error) {
 	defer p.measure(entry)()
 	p.state.changesDetected.Store(true)
@@ -421,11 +472,14 @@ func (p *phaseFolders) persistChanges(entry *folderEntry) (*folderEntry, error) 
 		log.Error(p.ctx, "Scanner: Error persisting changes to DB", "folder", entry.path, err)
 	}
 
-	// Pre-cache artwork after the transaction commits successfully
+	// Pre-cache artwork and fetch/persist media markers after the transaction commits
+	// successfully — the tracks now have real IDs, and marker plugin calls shouldn't run
+	// inside (and hold open) the write transaction above.
 	if err == nil {
 		for _, artID := range artworkIDs {
 			entry.job.cw.PreCache(artID)
 		}
+		p.persistMediaMarkers(entry)
 	}
 
 	return entry, err

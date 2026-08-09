@@ -27,6 +27,7 @@ type MockDataStore struct {
 	MockedScrobbleBuffer model.ScrobbleBufferRepository
 	MockedScrobble       model.ScrobbleRepository
 	MockedRadio          model.RadioRepository
+	MockedMediaMarker    model.MediaMarkerRepository
 	MockedPlugin         model.PluginRepository
 	scrobbleBufferMu     sync.Mutex
 	repoMu               sync.Mutex
@@ -236,6 +237,17 @@ func (db *MockDataStore) Radio(ctx context.Context) model.RadioRepository {
 	return db.MockedRadio
 }
 
+func (db *MockDataStore) MediaMarker(ctx context.Context) model.MediaMarkerRepository {
+	if db.MockedMediaMarker != nil {
+		return db.MockedMediaMarker
+	}
+	if db.RealDS != nil {
+		return db.RealDS.MediaMarker(ctx)
+	}
+	db.MockedMediaMarker = CreateMockedMediaMarkerRepo()
+	return db.MockedMediaMarker
+}
+
 func (db *MockDataStore) Plugin(ctx context.Context) model.PluginRepository {
 	if db.MockedPlugin != nil {
 		return db.MockedPlugin
@@ -269,6 +281,8 @@ func (db *MockDataStore) Resource(ctx context.Context, m any) model.ResourceRepo
 		return db.Playlist(ctx).(model.ResourceRepository)
 	case model.Radio, *model.Radio:
 		return db.Radio(ctx).(model.ResourceRepository)
+	case model.MediaMarker, *model.MediaMarker:
+		return db.MediaMarker(ctx).(model.ResourceRepository)
 	case model.Share, *model.Share:
 		return db.Share(ctx).(model.ResourceRepository)
 	case model.Genre, *model.Genre:

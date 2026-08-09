@@ -34,6 +34,8 @@ The plugin system is built on **[Extism](https://extism.org/)**, a cross-languag
   - [Task](#task)
   - [WebSocket](#websocket)
   - [Library](#library)
+  - [SilenceDetect](#silencedetect)
+  - [Fingerprint](#fingerprint)
   - [Artwork](#artwork)
   - [SubsonicAPI](#subsonicapi)
   - [Config](#config)
@@ -744,6 +746,98 @@ libraries, err := host.LibraryGetAllLibraries()
 for _, lib := range libraries {
     fmt.Printf("Library: %s (%d songs)\n", lib.Name, lib.TotalSongs)
 }
+```
+
+### SilenceDetect
+
+Run ffmpeg's `silencedetect` filter against a library file on the host and get back the silence
+spans found. WASM plugins have no subprocess/exec capability, so this is the server-side
+equivalent of a plugin shelling out to `ffmpeg -af silencedetect` itself — useful for
+lead/trail-silence skip-marker detection without bundling an audio decoder into the plugin.
+
+**Manifest permission:**
+
+```json
+{
+  "permissions": {
+    "library": {
+      "reason": "Read track paths for silence analysis",
+      "filesystem": true
+    },
+    "silencedetect": {
+      "reason": "Run host ffmpeg silence detection on library files"
+    }
+  }
+}
+```
+
+`silencedetect` always requires `library` with `filesystem: true` declared alongside it
+(enforced at manifest validation time) — the plugin supplies a library ID and a path relative to
+that library's root (the same shape as a capability's `TrackInfo.Path`/`LibraryID`), never a
+host filesystem path.
+
+**Host functions:**
+
+| Function               | Parameters                                  | Returns                    |
+|-------------------------|----------------------------------------------|-----------------------------|
+| `silencedetect_detect`  | `libraryId, path, noiseDb?, durationMs?`      | Array of silence spans      |
+
+- `noiseDb` – silencedetect's "noise" threshold in dB (default: `-30`)
+- `durationMs` – minimum silence duration to report, in milliseconds (default: `500`)
+
+**Usage:**
+
+```go
+resp, err := host.SilenceDetectDetect(host.SilenceDetectRequest{
+    LibraryID: track.LibraryID,
+    Path:      track.Path,
+})
+for _, span := range resp.Spans {
+    fmt.Printf("silence: %dms - %dms\n", span.StartMs, span.EndMs)
+}
+```
+
+### Fingerprint
+
+Compute a Chromaprint audio fingerprint for a library file on the host, via `fpcalc` (the
+Chromaprint/AcoustID project's CLI tool) — the server-side equivalent of a plugin shelling out to
+`fpcalc` itself, same shape as [SilenceDetect](#silencedetect). Typical use: fingerprint a track,
+send the result to AcoustID's lookup API (via the [HTTP](#http) host service) to get an AcoustID
+UUID, then look that UUID up against an external marker database.
+
+**Manifest permission:**
+
+```json
+{
+  "permissions": {
+    "library": {
+      "reason": "Read track paths for fingerprinting",
+      "filesystem": true
+    },
+    "fingerprint": {
+      "reason": "Compute a Chromaprint fingerprint for AcoustID lookup"
+    }
+  }
+}
+```
+
+`fingerprint` always requires `library` with `filesystem: true` declared alongside it, same as
+`silencedetect`.
+
+**Host functions:**
+
+| Function                | Parameters          | Returns                        |
+|--------------------------|----------------------|----------------------------------|
+| `fingerprint_compute`    | `libraryId, path`    | Fingerprint + duration (ms)      |
+
+**Usage:**
+
+```go
+resp, err := host.FingerprintCompute(host.FingerprintRequest{
+    LibraryID: track.LibraryID,
+    Path:      track.Path,
+})
+fmt.Printf("fingerprint: %s (%dms)\n", resp.Fingerprint, resp.DurationMs)
 ```
 
 ### Artwork

@@ -9,7 +9,9 @@ import (
 	"os"
 	"strings"
 
+	"github.com/navidrome/navidrome/conf"
 	"github.com/navidrome/navidrome/core"
+	"github.com/navidrome/navidrome/core/mediamarkers"
 	"github.com/navidrome/navidrome/core/playlists"
 	"github.com/navidrome/navidrome/db"
 	"github.com/navidrome/navidrome/log"
@@ -84,6 +86,25 @@ func runScanner(ctx context.Context) {
 	ds := persistence.New(sqlDB)
 	pls := playlists.NewPlaylists(ds, core.NewImageUploadService())
 
+	// This is the scan path used for every real scan in normal operation (see CallScan's doc
+	// comment) — so MediaMarkerProvider plugins need to actually be loaded here, not just for
+	// the interactive `navidrome scan` CLI invocation. Must go through the GetPluginManager wire
+	// helper (not a bare plugins.GetManager(ds, ...) call): Manager.Start() hard-requires a
+	// SubsonicRouter to have been set first (SubsonicAPI host functions call back into it), and
+	// GetPluginManager is the only place that wires one via SetSubsonicRouter(
+	// CreateSubsonicAPIRouter(ctx)). There's no lighter-weight construction available — building
+	// the router doesn't bind a port, but it does pull in the rest of allProviders.
+	mediaMarkers := mediamarkers.New(nil)
+	if conf.Server.Plugins.Enabled {
+		manager := GetPluginManager(ctx)
+		if err := manager.Start(ctx); err != nil {
+			log.Error(ctx, "Error starting plugin manager for scan", err)
+		} else {
+			defer func() { _ = manager.Stop() }()
+			mediaMarkers = mediamarkers.New(manager)
+		}
+	}
+
 	// Parse targets from command line or file
 	var scanTargets []model.ScanTarget
 	var err error
@@ -112,7 +133,7 @@ func runScanner(ctx context.Context) {
 		}
 	}
 
-	progress, err := scanner.CallScan(ctx, ds, pls, fullScan, scanTargets)
+	progress, err := scanner.CallScan(ctx, ds, pls, mediaMarkers, fullScan, scanTargets)
 	if err != nil {
 		log.Fatal(ctx, "Failed to scan", err)
 	}

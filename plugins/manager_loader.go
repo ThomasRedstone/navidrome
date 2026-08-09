@@ -8,6 +8,8 @@ import (
 	"time"
 
 	extism "github.com/extism/go-sdk"
+	"github.com/navidrome/navidrome/core/chromaprint"
+	"github.com/navidrome/navidrome/core/ffmpeg"
 	"github.com/navidrome/navidrome/log"
 	"github.com/navidrome/navidrome/model"
 	"github.com/navidrome/navidrome/plugins/host"
@@ -139,6 +141,24 @@ var hostServices = []hostServiceEntry{
 				newLibraryAccess(ctx.allowedLibraries, ctx.allLibraries),
 			)
 			return host.RegisterMatcherHostFunctions(service), nil, nil
+		},
+	},
+	{
+		name:          "SilenceDetect",
+		hasPermission: func(p *Permissions) bool { return p != nil && p.Silencedetect != nil },
+		create: func(ctx *serviceContext) ([]extism.HostFunction, io.Closer, error) {
+			hasFilesystemPerm := ctx.permissions.Library != nil && ctx.permissions.Library.Filesystem
+			service := newSilenceDetectService(ctx.manager.ds, ffmpeg.New(), hasFilesystemPerm, ctx.allowedLibraries, ctx.allLibraries)
+			return host.RegisterSilenceDetectHostFunctions(service), nil, nil
+		},
+	},
+	{
+		name:          "Fingerprint",
+		hasPermission: func(p *Permissions) bool { return p != nil && p.Fingerprint != nil },
+		create: func(ctx *serviceContext) ([]extism.HostFunction, io.Closer, error) {
+			hasFilesystemPerm := ctx.permissions.Library != nil && ctx.permissions.Library.Filesystem
+			service := newFingerprintService(ctx.manager.ds, chromaprint.New(), hasFilesystemPerm, ctx.allowedLibraries, ctx.allLibraries)
+			return host.RegisterFingerprintHostFunctions(service), nil, nil
 		},
 	},
 	{

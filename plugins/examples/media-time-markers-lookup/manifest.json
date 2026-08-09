@@ -1,0 +1,62 @@
+{
+  "name": "Media Time Markers Lookup",
+  "author": "Navidrome",
+  "version": "1.0.0",
+  "description": "Looks up skip/sample markers for a track by AcoustID fingerprint against a crowdsourced GitHub-hosted marker repository (media-time-markers)",
+  "website": "https://github.com/navidrome/navidrome/tree/master/plugins/examples/media-time-markers-lookup",
+  "config": {
+    "schema": {
+      "type": "object",
+      "required": ["acoustidApiKey"],
+      "properties": {
+        "acoustidApiKey": {
+          "type": "string",
+          "title": "AcoustID application API key",
+          "description": "Free key from https://acoustid.org/api-key. Must be an *application* key, not a personal/account key."
+        },
+        "repoOwner": {
+          "type": "string",
+          "title": "Repository owner",
+          "default": "ThomasRedstone"
+        },
+        "repoName": {
+          "type": "string",
+          "title": "Repository name",
+          "default": "media-time-markers"
+        },
+        "repoRef": {
+          "type": "string",
+          "title": "Repository ref (branch or tag)",
+          "default": "main"
+        }
+      }
+    },
+    "uiSchema": {
+      "type": "VerticalLayout",
+      "elements": [
+        { "type": "Control", "scope": "#/properties/acoustidApiKey" },
+        {
+          "type": "HorizontalLayout",
+          "elements": [
+            { "type": "Control", "scope": "#/properties/repoOwner" },
+            { "type": "Control", "scope": "#/properties/repoName" },
+            { "type": "Control", "scope": "#/properties/repoRef" }
+          ]
+        }
+      ]
+    }
+  },
+  "permissions": {
+    "library": {
+      "reason": "To read the track's file path for fingerprinting",
+      "filesystem": true
+    },
+    "fingerprint": {
+      "reason": "To compute the track's Chromaprint fingerprint for AcoustID lookup"
+    },
+    "http": {
+      "reason": "To query AcoustID and fetch marker data from the jsDelivr-mirrored marker repository",
+      "requiredHosts": ["api.acoustid.org", "cdn.jsdelivr.net"]
+    }
+  }
+}

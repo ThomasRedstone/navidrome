@@ -1,0 +1,43 @@
+{
+  "name": "Silence Marker",
+  "author": "Navidrome",
+  "version": "1.0.0",
+  "description": "Detects lead/trail silence around a track's audio using host ffmpeg silencedetect and reports skip/lead_silence and skip/trail_silence media markers",
+  "website": "https://github.com/navidrome/navidrome/tree/master/plugins/examples/silence-marker",
+  "config": {
+    "schema": {
+      "type": "object",
+      "properties": {
+        "noiseDb": {
+          "type": "number",
+          "title": "Noise threshold (dB)",
+          "description": "ffmpeg silencedetect's noise threshold. Lower (more negative) is stricter.",
+          "default": -30
+        },
+        "minSilenceMs": {
+          "type": "integer",
+          "title": "Minimum silence duration (ms)",
+          "description": "Silence shorter than this is ignored.",
+          "default": 500,
+          "minimum": 50
+        }
+      }
+    },
+    "uiSchema": {
+      "type": "HorizontalLayout",
+      "elements": [
+        { "type": "Control", "scope": "#/properties/noiseDb" },
+        { "type": "Control", "scope": "#/properties/minSilenceMs" }
+      ]
+    }
+  },
+  "permissions": {
+    "library": {
+      "reason": "To read the track's file path for silence analysis",
+      "filesystem": true
+    },
+    "silencedetect": {
+      "reason": "To run host ffmpeg silencedetect against the track's audio"
+    }
+  }
+}

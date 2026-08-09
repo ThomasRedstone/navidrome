@@ -12,6 +12,7 @@ import (
 	"github.com/navidrome/navidrome/core/agents"
 	"github.com/navidrome/navidrome/core/artwork"
 	"github.com/navidrome/navidrome/core/lyrics"
+	"github.com/navidrome/navidrome/core/mediamarkers"
 	"github.com/navidrome/navidrome/core/metrics"
 	"github.com/navidrome/navidrome/core/playback"
 	"github.com/navidrome/navidrome/core/scrobbler"
@@ -50,6 +51,7 @@ var allProviders = wire.NewSet(
 	wire.Bind(new(agents.PluginLoader), new(*plugins.Manager)),
 	wire.Bind(new(scrobbler.PluginLoader), new(*plugins.Manager)),
 	wire.Bind(new(lyrics.PluginLoader), new(*plugins.Manager)),
+	wire.Bind(new(mediamarkers.PluginLoader), new(*plugins.Manager)),
 	wire.Bind(new(sonic.PluginLoader), new(*plugins.Manager)),
 	wire.Bind(new(sonic.Engine), new(*sonic.Sonic)),
 	wire.Bind(new(nativeapi.PluginManager), new(*plugins.Manager)),

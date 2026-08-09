@@ -17,6 +17,7 @@ import (
 	"github.com/navidrome/navidrome/core/artwork"
 	"github.com/navidrome/navidrome/core/auth"
 	"github.com/navidrome/navidrome/core/ffmpeg"
+	"github.com/navidrome/navidrome/core/mediamarkers"
 	"github.com/navidrome/navidrome/core/metrics"
 	"github.com/navidrome/navidrome/core/playlists"
 	"github.com/navidrome/navidrome/core/storage/storagetest"
@@ -75,7 +76,7 @@ func SetupDB(ctx context.Context, users ...*model.User) *DB {
 	}
 
 	s := scanner.New(ctx, ds, artwork.NoopCacheWarmer(), events.NoopBroker(),
-		playlists.NewPlaylists(ds, core.NewImageUploadService()), metrics.NewNoopInstance())
+		playlists.NewPlaylists(ds, core.NewImageUploadService()), metrics.NewNoopInstance(), mediamarkers.New(nil))
 	_, err := s.ScanAll(ctx, true)
 	Expect(err).ToNot(HaveOccurred())
 
@@ -165,6 +166,10 @@ func (NoopFFmpeg) ProbeAudioStream(context.Context, string) (*ffmpeg.AudioProbeR
 
 func (NoopFFmpeg) ConvertAnimatedImage(context.Context, io.Reader, int, int) (io.ReadCloser, error) {
 	return nil, errors.New("noop ffmpeg: convert animated image not supported")
+}
+
+func (NoopFFmpeg) DetectSilence(context.Context, string, float64, float64) ([]ffmpeg.SilenceSpan, error) {
+	return nil, errors.New("noop ffmpeg: detect silence not supported")
 }
 
 func (NoopFFmpeg) CmdPath() (string, error) { return "", nil }
