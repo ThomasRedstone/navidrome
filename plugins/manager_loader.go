@@ -10,6 +10,7 @@ import (
 	extism "github.com/extism/go-sdk"
 	"github.com/navidrome/navidrome/core/chromaprint"
 	"github.com/navidrome/navidrome/core/ffmpeg"
+	"github.com/navidrome/navidrome/core/inaspeech"
 	"github.com/navidrome/navidrome/log"
 	"github.com/navidrome/navidrome/model"
 	"github.com/navidrome/navidrome/plugins/host"
@@ -159,6 +160,15 @@ var hostServices = []hostServiceEntry{
 			hasFilesystemPerm := ctx.permissions.Library != nil && ctx.permissions.Library.Filesystem
 			service := newFingerprintService(ctx.manager.ds, chromaprint.New(), hasFilesystemPerm, ctx.allowedLibraries, ctx.allLibraries)
 			return host.RegisterFingerprintHostFunctions(service), nil, nil
+		},
+	},
+	{
+		name:          "SpeechMusicDetect",
+		hasPermission: func(p *Permissions) bool { return p != nil && p.Speechmusicdetect != nil },
+		create: func(ctx *serviceContext) ([]extism.HostFunction, io.Closer, error) {
+			hasFilesystemPerm := ctx.permissions.Library != nil && ctx.permissions.Library.Filesystem
+			service := newSpeechMusicDetectService(ctx.manager.ds, inaspeech.New(), hasFilesystemPerm, ctx.allowedLibraries, ctx.allLibraries)
+			return host.RegisterSpeechMusicDetectHostFunctions(service), nil, nil
 		},
 	},
 	{

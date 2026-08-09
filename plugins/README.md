@@ -36,6 +36,7 @@ The plugin system is built on **[Extism](https://extism.org/)**, a cross-languag
   - [Library](#library)
   - [SilenceDetect](#silencedetect)
   - [Fingerprint](#fingerprint)
+  - [SpeechMusicDetect](#speechmusicdetect)
   - [Artwork](#artwork)
   - [SubsonicAPI](#subsonicapi)
   - [Config](#config)
@@ -838,6 +839,60 @@ resp, err := host.FingerprintCompute(host.FingerprintRequest{
     Path:      track.Path,
 })
 fmt.Printf("fingerprint: %s (%dms)\n", resp.Fingerprint, resp.DurationMs)
+```
+
+### SpeechMusicDetect
+
+Classify a library file into speech/music/noise/silence segments on the host, via
+[inaSpeechSegmenter][ina] — the server-side equivalent of a plugin running that classifier
+itself, same shape as [SilenceDetect](#silencedetect). Unlike SilenceDetect and Fingerprint,
+inaSpeechSegmenter is a Python/TensorFlow tool rather than a single binary, so this service is
+only available when the server has `InaSpeechPythonPath` (or `ND_INASPEECHPYTHONPATH`) configured
+to point at a venv with `inaSpeechSegmenter` installed — there is no PATH-discovered default.
+Typical use: find the leading/trailing run of speech around a track's music and turn it into
+`skip/intro_speech` / `skip/outro_speech` markers (see the
+[speech-music-marker example](examples/speech-music-marker)).
+
+[ina]: https://github.com/ina-foss/inaSpeechSegmenter
+
+**Manifest permission:**
+
+```json
+{
+  "permissions": {
+    "library": {
+      "reason": "Read track paths for speech/music analysis",
+      "filesystem": true
+    },
+    "speechmusicdetect": {
+      "reason": "Classify library audio into speech/music segments"
+    }
+  }
+}
+```
+
+`speechmusicdetect` always requires `library` with `filesystem: true` declared alongside it, same
+as `silencedetect`.
+
+**Host functions:**
+
+| Function                    | Parameters          | Returns                                  |
+|-------------------------------|----------------------|---------------------------------------------|
+| `speechmusicdetect_detect`    | `libraryId, path`    | Array of `{label, startMs, endMs}` segments  |
+
+`label` is one of inaSpeechSegmenter's classes: `speech` (or the gender-labeled `male`/`female`
+variants some model versions emit), `music`, `noEnergy` (silence), or `noise`.
+
+**Usage:**
+
+```go
+resp, err := host.SpeechMusicDetectDetect(host.SpeechMusicDetectRequest{
+    LibraryID: track.LibraryID,
+    Path:      track.Path,
+})
+for _, seg := range resp.Segments {
+    fmt.Printf("%s: %dms - %dms\n", seg.Label, seg.StartMs, seg.EndMs)
+}
 ```
 
 ### Artwork

@@ -191,6 +191,9 @@ type Permissions struct {
 	// Silencedetect corresponds to the JSON schema field "silencedetect".
 	Silencedetect *SilenceDetectPermission `json:"silencedetect,omitempty" yaml:"silencedetect,omitempty" mapstructure:"silencedetect,omitempty"`
 
+	// Speechmusicdetect corresponds to the JSON schema field "speechmusicdetect".
+	Speechmusicdetect *SpeechMusicDetectPermission `json:"speechmusicdetect,omitempty" yaml:"speechmusicdetect,omitempty" mapstructure:"speechmusicdetect,omitempty"`
+
 	// Storage corresponds to the JSON schema field "storage".
 	Storage *StoragePermission `json:"storage,omitempty" yaml:"storage,omitempty" mapstructure:"storage,omitempty"`
 
@@ -217,6 +220,13 @@ type SchedulerPermission struct {
 // on library files
 type SilenceDetectPermission struct {
 	// Explanation for why silence detection access is needed
+	Reason *string `json:"reason,omitempty" yaml:"reason,omitempty" mapstructure:"reason,omitempty"`
+}
+
+// SpeechMusicDetect service permissions for running host-side inaSpeechSegmenter
+// speech/music classification on library files
+type SpeechMusicDetectPermission struct {
+	// Explanation for why speech/music classification access is needed
 	Reason *string `json:"reason,omitempty" yaml:"reason,omitempty" mapstructure:"reason,omitempty"`
 }
 

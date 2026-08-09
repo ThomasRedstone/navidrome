@@ -101,6 +101,9 @@
         },
         "fingerprint": {
           "$ref": "#/$defs/FingerprintPermission"
+        },
+        "speechmusicdetect": {
+          "$ref": "#/$defs/SpeechMusicDetectPermission"
         }
       }
     },
@@ -273,6 +276,17 @@
         "reason": {
           "type": "string",
           "description": "Explanation for why fingerprinting access is needed"
+        }
+      }
+    },
+    "SpeechMusicDetectPermission": {
+      "type": "object",
+      "description": "SpeechMusicDetect service permissions for running host-side inaSpeechSegmenter speech/music classification on library files",
+      "additionalProperties": false,
+      "properties": {
+        "reason": {
+          "type": "string",
+          "description": "Explanation for why speech/music classification access is needed"
         }
       }
     },

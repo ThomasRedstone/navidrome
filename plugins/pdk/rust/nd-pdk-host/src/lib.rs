@@ -42,6 +42,7 @@
 //! - [`matcher`] - resolves externally-obtained songs to local library tracks,
 //! - [`scheduler`] - provides task scheduling capabilities for plugins.
 //! - [`silencedetect`] - runs ffmpeg's silencedetect filter on a library file on behalf of a
+//! - [`speechmusicdetect`] - classifies a library audio file into speech/music/noise/silence
 //! - [`storage`] - provides access to a plugin-specific directory with read/write permissions
 //! - [`subsonicapi`] - provides access to Navidrome's Subsonic API from plugins.
 //! - [`task`] - provides persistent task queues for plugins.
@@ -116,6 +117,13 @@ mod nd_host_silencedetect;
 /// runs ffmpeg's silencedetect filter on a library file on behalf of a
 pub mod silencedetect {
     pub use super::nd_host_silencedetect::*;
+}
+
+#[doc(hidden)]
+mod nd_host_speechmusicdetect;
+/// classifies a library audio file into speech/music/noise/silence
+pub mod speechmusicdetect {
+    pub use super::nd_host_speechmusicdetect::*;
 }
 
 #[doc(hidden)]

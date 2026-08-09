@@ -76,6 +76,7 @@ type configOptions struct {
 	IndexGroups                     string
 	FFmpegPath                      string
 	FpcalcPath                      string
+	InaSpeechPythonPath             string
 	MPVPath                         string
 	MPVCmdTemplate                  string
 	CoverArtPriority                string

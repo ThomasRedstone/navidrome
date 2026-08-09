@@ -84,6 +84,14 @@ func (m *Manifest) Validate() error {
 		}
 	}
 
+	// SpeechMusicDetect reads library audio files on the plugin's behalf, same reasoning as
+	// SilenceDetect above.
+	if m.Permissions != nil && m.Permissions.Speechmusicdetect != nil {
+		if m.Permissions.Library == nil || !m.Permissions.Library.Filesystem {
+			return fmt.Errorf("'speechmusicdetect' permission requires 'library' permission with 'filesystem: true' to be declared")
+		}
+	}
+
 	// Validate config schema if present
 	if m.Config != nil && m.Config.Schema != nil {
 		if err := validateConfigSchema(m.Config.Schema); err != nil {
