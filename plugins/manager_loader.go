@@ -510,10 +510,16 @@ func parsePluginConfig(configJSON string) (map[string]string, error) {
 // buildExtismManifest describes the plugin to extism. It must never set
 // AllowedPaths: extism would replace our jailed FSConfig with plain dir mounts.
 func buildExtismManifest(pkg *ndpPackage, pluginConfig map[string]string) extism.Manifest {
+	timeout := defaultTimeout
+	if pkg.Manifest.TimeoutSeconds != nil {
+		// Bounds already enforced by manifest schema validation (1-300s) — this only needs
+		// to trust that.
+		timeout = time.Duration(*pkg.Manifest.TimeoutSeconds) * time.Second
+	}
 	manifest := extism.Manifest{
 		Wasm:    []extism.Wasm{extism.WasmData{Data: pkg.WasmBytes, Name: "main"}},
 		Config:  pluginConfig,
-		Timeout: uint64(defaultTimeout.Milliseconds()),
+		Timeout: uint64(timeout.Milliseconds()),
 	}
 	if pkg.Manifest.Permissions != nil && pkg.Manifest.Permissions.Http != nil {
 		if hosts := pkg.Manifest.Permissions.Http.RequiredHosts; len(hosts) > 0 {

@@ -2,8 +2,9 @@
   "name": "Speech/Music Marker",
   "author": "Navidrome",
   "version": "1.0.0",
-  "description": "Detects spoken intro/outro segments around a track's musical content using host inaSpeechSegmenter classification and reports skip/intro_speech and skip/outro_speech media markers",
+  "description": "Detects spoken intro/outro segments around a track's musical content using host inaSpeechSegmenter classification (after Demucs vocal isolation) and reports skip/intro_speech and skip/outro_speech media markers",
   "website": "https://github.com/navidrome/navidrome/tree/master/plugins/examples/speech-music-marker",
+  "timeoutSeconds": 150,
   "permissions": {
     "library": {
       "reason": "To read the track's file path for speech/music analysis",

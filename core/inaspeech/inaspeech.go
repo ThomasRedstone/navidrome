@@ -33,6 +33,11 @@ type Segment struct {
 	Label   string
 	StartMs int64
 	EndMs   int64
+	// Window is "lead" or "trail" — which classified window (see segment.py's WINDOW_SEC) this
+	// segment came from. Callers must not treat the combined Segment list as one continuous
+	// timeline when reasoning about a within-window boundary; see host.SpeechMusicSegment's
+	// doc comment for why.
+	Window string
 }
 
 // IsSpeech reports whether the segment is a speech segment, regardless of which
@@ -59,6 +64,7 @@ type segmentJSON struct {
 	Label   string `json:"label"`
 	StartMs int64  `json:"startMs"`
 	EndMs   int64  `json:"endMs"`
+	Window  string `json:"window"`
 }
 
 func (i *inaSpeech) Segment(ctx context.Context, filePath string) ([]Segment, error) {
@@ -88,7 +94,7 @@ func (i *inaSpeech) Segment(ctx context.Context, filePath string) ([]Segment, er
 	}
 	segments := make([]Segment, len(raw))
 	for idx, r := range raw {
-		segments[idx] = Segment{Label: r.Label, StartMs: r.StartMs, EndMs: r.EndMs}
+		segments[idx] = Segment{Label: r.Label, StartMs: r.StartMs, EndMs: r.EndMs, Window: r.Window}
 	}
 	return segments, nil
 }

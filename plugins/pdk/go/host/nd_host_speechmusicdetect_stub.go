@@ -29,10 +29,21 @@ type SpeechMusicDetectResponse struct {
 // SpeechMusicSegment represents the SpeechMusicSegment data structure.
 // SpeechMusicSegment is a labeled span of a track, in milliseconds, as classified by
 // inaSpeechSegmenter. Label is one of "speech", "music", "noEnergy" (silence), or "noise".
+//
+// Window identifies which classified window this segment came from ("lead" or "trail") — the
+// underlying classifier only ever looks at the leading/trailing few minutes of a track (see
+// core/inaspeech/segment.py), not the whole thing, so a caller that needs a boundary within a
+// single window (e.g. "where does the leading speech run end") must not search across both
+// windows' segments as if they were one continuous timeline: there's a real time gap between
+// them for any track longer than roughly 2x the window size, and after the classified audio is
+// run through Demucs vocal separation, a "music" label essentially never appears at all (an
+// isolated vocal stem has no music content to classify) — so any logic that used to scan for a
+// music-labeled boundary across the full segment list needs to work per-window instead.
 type SpeechMusicSegment struct {
 	Label   string `json:"label"`
 	StartMs int64  `json:"startMs"`
 	EndMs   int64  `json:"endMs"`
+	Window  string `json:"window"`
 }
 
 // mockSpeechMusicDetectService is the mock implementation for testing.

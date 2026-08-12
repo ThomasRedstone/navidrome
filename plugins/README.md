@@ -140,7 +140,14 @@ Every plugin must include a `manifest.json` file. Example:
 
 **Required fields:** `name`, `author`, `version`
 
-**Optional fields:** `description`, `website`, `config`, `permissions`
+**Optional fields:** `description`, `website`, `config`, `permissions`, `timeoutSeconds`
+
+`timeoutSeconds` (1-300, default 30) overrides the per-call timeout for this plugin's WASM
+module calls. Only needed by plugins whose host function calls do genuinely heavy,
+duration-proportional work — e.g. [SpeechMusicDetect](#speechmusicdetect)'s Demucs-backed
+separation step, which runs at roughly 5-6x realtime and routinely needs more than 30s. Most
+plugins never need this; a host function doing a fixed amount of work per call (however slow)
+should fit comfortably under the default.
 
 #### Config Definition
 
@@ -844,16 +851,24 @@ fmt.Printf("fingerprint: %s (%dms)\n", resp.Fingerprint, resp.DurationMs)
 ### SpeechMusicDetect
 
 Classify a library file into speech/music/noise/silence segments on the host, via
-[inaSpeechSegmenter][ina] — the server-side equivalent of a plugin running that classifier
-itself, same shape as [SilenceDetect](#silencedetect). Unlike SilenceDetect and Fingerprint,
-inaSpeechSegmenter is a Python/TensorFlow tool rather than a single binary, so this service is
-only available when the server has `InaSpeechPythonPath` (or `ND_INASPEECHPYTHONPATH`) configured
-to point at a venv with `inaSpeechSegmenter` installed — there is no PATH-discovered default.
-Typical use: find the leading/trailing run of speech around a track's music and turn it into
-`skip/intro_speech` / `skip/outro_speech` markers (see the
-[speech-music-marker example](examples/speech-music-marker)).
+[inaSpeechSegmenter][ina] (after separating the vocal stem out with [Demucs][demucs] first, to
+handle talk-over-a-beat content — see the [speech-music-marker README](examples/speech-music-marker)
+for why) — the server-side equivalent of a plugin running that classifier itself, same shape as
+[SilenceDetect](#silencedetect). Unlike SilenceDetect and Fingerprint, this is a Python/
+TensorFlow tool rather than a single binary, so this service is only available when the server
+has `InaSpeechPythonPath` (or `ND_INASPEECHPYTHONPATH`) configured to point at a venv with both
+`inaSpeechSegmenter` and `demucs` installed — there is no PATH-discovered default. Typical use:
+find the leading/trailing run of speech around a track's music and turn it into
+`skip/intro_speech` / `skip/outro_speech` markers.
+
+Each call only classifies the leading/trailing window of the track (not the whole thing — see
+`core/inaspeech/segment.py`) and runs Demucs on each window, which is slow (CPU-bound, roughly
+5-6x realtime) — well past the default 30s per-call plugin timeout. A plugin whose host calls
+genuinely need longer can declare `timeoutSeconds` (1-300) in its manifest to override the
+default; `speech-music-marker`'s manifest sets 150.
 
 [ina]: https://github.com/ina-foss/inaSpeechSegmenter
+[demucs]: https://github.com/facebookresearch/demucs
 
 **Manifest permission:**
 
@@ -876,12 +891,16 @@ as `silencedetect`.
 
 **Host functions:**
 
-| Function                    | Parameters          | Returns                                  |
-|-------------------------------|----------------------|---------------------------------------------|
-| `speechmusicdetect_detect`    | `libraryId, path`    | Array of `{label, startMs, endMs}` segments  |
+| Function                    | Parameters          | Returns                                          |
+|-------------------------------|----------------------|-----------------------------------------------------|
+| `speechmusicdetect_detect`    | `libraryId, path`    | Array of `{label, startMs, endMs, window}` segments  |
 
 `label` is one of inaSpeechSegmenter's classes: `speech` (or the gender-labeled `male`/`female`
-variants some model versions emit), `music`, `noEnergy` (silence), or `noise`.
+variants some model versions emit), `music`, `noEnergy` (silence), or `noise`. `window` is `lead`
+or `trail` — which classified window this segment came from; a caller reasoning about a
+within-window boundary (e.g. "where does the leading speech run end") must process each window's
+segments independently, not as one continuous timeline — there's a real time gap between them
+for tracks longer than ~2x the window size.
 
 **Usage:**
 

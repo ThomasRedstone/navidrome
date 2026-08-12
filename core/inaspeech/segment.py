@@ -14,6 +14,17 @@ keeps each call's wall time close to the fixed per-call model-load cost (a fresh
 subprocess reloads TensorFlow + the CNN weights every invocation — there's no cross-call
 caching) regardless of how long the track actually is.
 
+Each windowed clip is run through Demucs vocal separation before classification. Talk-over-beat
+content (a DJ/host talking over a continuous rhythmic track from second one, rather than a clean
+silence-then-speech-then-music structure) turned out to be invisible to inaSpeechSegmenter on
+the raw mix — verified against real podcast tracks, every "male"/"female" speech region
+inaSpeechSegmenter found on the *original* audio dropped to statistically indistinguishable from
+pure music once cross-checked. Separating the vocal stem first (Demucs' htdemucs model) resolves
+this: once the beat is removed, the isolated vocal track shows a clean, strong energy jump
+exactly where the talking starts. Demucs runs on CPU at roughly 5-6x realtime — the dominant
+cost of each call, well above inaSpeechSegmenter's own classification time — hence this plugin's
+manifest declares timeoutSeconds to extend past the default 30s per-call limit.
+
 Prints a JSON array of {"label": str, "startMs": int, "endMs": int} objects to stdout, in
 chronological order, with trail-window timestamps already offset to be track-relative. Any
 diagnostic output goes to stderr so stdout stays pure JSON.
@@ -42,14 +53,40 @@ def probe_duration_sec(path):
 
 def extract_clip(path, start_sec, duration_sec, out_path):
     # -ss before -i is a fast (keyframe-approximate) seek — fine here since we only need
-    # second-level accuracy at the window boundary, not sample-accurate alignment.
+    # second-level accuracy at the window boundary, not sample-accurate alignment. Demucs wants
+    # its own sample rate/channel layout, so this intermediate clip stays at a normal music
+    # sample rate (44.1kHz stereo) rather than the 16kHz mono inaSpeechSegmenter ultimately
+    # wants — separate_vocals' own ffmpeg call does that final downmix/resample afterward.
     subprocess.run(
         [
             "ffmpeg", "-y", "-ss", str(start_sec), "-i", path, "-t", str(duration_sec),
-            "-ar", "16000", "-ac", "1", out_path,
+            "-ar", "44100", "-ac", "2", out_path,
         ],
         check=True, capture_output=True,
     )
+
+
+def separate_vocals(clip_path, work_dir):
+    """Runs Demucs on clip_path (a short extracted window, not the full track — Demucs' cost is
+    duration-proportional, unlike inaSpeechSegmenter's fixed model-load cost) and returns a
+    16kHz mono WAV of just the isolated vocal stem, ready for inaSpeechSegmenter."""
+    subprocess.run(
+        [
+            sys.executable, "-m", "demucs", "--two-stems=vocals",
+            "-o", work_dir, clip_path,
+        ],
+        check=True, capture_output=True,
+    )
+    stem = os.path.splitext(os.path.basename(clip_path))[0]
+    vocals_path = os.path.join(work_dir, "htdemucs", stem, "vocals.wav")
+
+    # inaSpeechSegmenter wants 16kHz mono, same as the non-separated path.
+    downmixed_path = os.path.join(work_dir, f"{stem}_vocals_16k.wav")
+    subprocess.run(
+        ["ffmpeg", "-y", "-i", vocals_path, "-ar", "16000", "-ac", "1", downmixed_path],
+        check=True, capture_output=True,
+    )
+    return downmixed_path
 
 
 def classify(seg, path, devnull_fd):
@@ -90,21 +127,30 @@ def main():
 
             lead_clip = os.path.join(tmp, "lead.wav")
             extract_clip(path, 0, lead_dur, lead_clip)
-            for label, start, end in classify(seg, lead_clip, devnull_fd):
-                out.append({"label": label, "startMs": int(round(start * 1000)), "endMs": int(round(end * 1000))})
+            lead_vocals = separate_vocals(lead_clip, tmp)
+            for label, start, end in classify(seg, lead_vocals, devnull_fd):
+                out.append({
+                    "label": label, "startMs": int(round(start * 1000)), "endMs": int(round(end * 1000)),
+                    "window": "lead",
+                })
 
             # Skip a separate trail pass when the windows already overlap/cover the whole
             # track — avoids double-counting the same audio and a wasted second model call on
-            # short tracks.
+            # short tracks. When skipped, the lead pass above already covers the whole track, so
+            # any trailing speech it found is still tagged "lead" — callers treat a short track
+            # as lead-window-only rather than expecting a separate trail window that doesn't
+            # exist.
             if trail_start > lead_dur:
                 trail_clip = os.path.join(tmp, "trail.wav")
                 extract_clip(path, trail_start, trail_dur, trail_clip)
+                trail_vocals = separate_vocals(trail_clip, tmp)
                 offset_ms = int(round(trail_start * 1000))
-                for label, start, end in classify(seg, trail_clip, devnull_fd):
+                for label, start, end in classify(seg, trail_vocals, devnull_fd):
                     out.append({
                         "label": label,
                         "startMs": offset_ms + int(round(start * 1000)),
                         "endMs": offset_ms + int(round(end * 1000)),
+                        "window": "trail",
                     })
     finally:
         os.close(devnull_fd)

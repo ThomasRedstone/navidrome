@@ -116,6 +116,12 @@ type Manifest struct {
 	// Permissions corresponds to the JSON schema field "permissions".
 	Permissions *Permissions `json:"permissions,omitempty" yaml:"permissions,omitempty" mapstructure:"permissions,omitempty"`
 
+	// Overrides the default per-call timeout (30s) for this plugin's WASM module
+	// calls. Only needed for plugins whose host function calls do genuinely heavy,
+	// duration-proportional work (e.g. audio source separation) rather than a fixed
+	// model-load cost. Capped at 300s.
+	TimeoutSeconds *int `json:"timeoutSeconds,omitempty" yaml:"timeoutSeconds,omitempty" mapstructure:"timeoutSeconds,omitempty"`
+
 	// The version of the plugin (semver recommended)
 	Version string `json:"version" yaml:"version" mapstructure:"version"`
 
@@ -148,6 +154,12 @@ func (j *Manifest) UnmarshalJSON(value []byte) error {
 	}
 	if len(plain.Name) < 1 {
 		return fmt.Errorf("field %s length: must be >= %d", "name", 1)
+	}
+	if plain.TimeoutSeconds != nil && 300 < *plain.TimeoutSeconds {
+		return fmt.Errorf("field %s: must be <= %v", "timeoutSeconds", 300)
+	}
+	if plain.TimeoutSeconds != nil && 1 > *plain.TimeoutSeconds {
+		return fmt.Errorf("field %s: must be >= %v", "timeoutSeconds", 1)
 	}
 	if len(plain.Version) < 1 {
 		return fmt.Errorf("field %s length: must be >= %d", "version", 1)

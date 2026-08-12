@@ -72,7 +72,7 @@ func (s *speechMusicDetectServiceImpl) Detect(ctx context.Context, request host.
 
 	resp := &host.SpeechMusicDetectResponse{Segments: make([]host.SpeechMusicSegment, len(segments))}
 	for i, seg := range segments {
-		resp.Segments[i] = host.SpeechMusicSegment{Label: seg.Label, StartMs: seg.StartMs, EndMs: seg.EndMs}
+		resp.Segments[i] = host.SpeechMusicSegment{Label: seg.Label, StartMs: seg.StartMs, EndMs: seg.EndMs, Window: seg.Window}
 	}
 	return resp, nil
 }

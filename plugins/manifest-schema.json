@@ -36,6 +36,12 @@
     },
     "config": {
       "$ref": "#/$defs/ConfigDefinition"
+    },
+    "timeoutSeconds": {
+      "type": "integer",
+      "description": "Overrides the default per-call timeout (30s) for this plugin's WASM module calls. Only needed for plugins whose host function calls do genuinely heavy, duration-proportional work (e.g. audio source separation) rather than a fixed model-load cost. Capped at 300s.",
+      "minimum": 1,
+      "maximum": 300
     }
   },
   "$defs": {
