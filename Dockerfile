@@ -160,7 +160,9 @@ LABEL org.opencontainers.image.source="https://github.com/navidrome/navidrome"
 
 # Install runtime dependencies
 # - libwebp + symlinks: enables native WebP encoding via purego/dlopen
-RUN apk add -U --no-cache ffmpeg mpv sqlite libwebp libwebpdemux libwebpmux && \
+# - chromaprint: provides fpcalc, used by the plugins/host Fingerprint host function
+#   (media-time-markers-lookup plugin's AcoustID identification step)
+RUN apk add -U --no-cache ffmpeg mpv sqlite libwebp libwebpdemux libwebpmux chromaprint && \
     for lib in libwebp libwebpdemux libwebpmux; do \
         target=$(ls /usr/lib/$lib.so.* 2>/dev/null | head -1) && \
         [ -n "$target" ] && ln -sf "$target" /usr/lib/$lib.so; \
