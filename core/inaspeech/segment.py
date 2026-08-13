@@ -14,7 +14,14 @@ keeps each call's wall time close to the fixed per-call model-load cost (a fresh
 subprocess reloads TensorFlow + the CNN weights every invocation — there's no cross-call
 caching) regardless of how long the track actually is.
 
-Each windowed clip is run through Demucs vocal separation before classification. Talk-over-beat
+If a window's outer edge is still speech right at the boundary, that's a signal the real
+intro/outro keeps going past what this window covered — rather than guessing at a bigger WINDOW_SEC
+for every track (most don't need it), only tracks that actually hit the boundary get up to
+MAX_EXTENSIONS additional WINDOW_SEC chunks appended, extending further in that direction until
+the run of speech ends or the extension budget is spent. A track with a 5-second intro pays for
+one window; a track with a genuine 4-minute intro pays for the extensions it actually needs.
+
+Each classified chunk is run through Demucs vocal separation before classification. Talk-over-beat
 content (a DJ/host talking over a continuous rhythmic track from second one, rather than a clean
 silence-then-speech-then-music structure) turned out to be invisible to inaSpeechSegmenter on
 the raw mix — verified against real podcast tracks, every "male"/"female" speech region
@@ -25,9 +32,9 @@ exactly where the talking starts. Demucs runs on CPU at roughly 5-6x realtime �
 cost of each call, well above inaSpeechSegmenter's own classification time — hence this plugin's
 manifest declares timeoutSeconds to extend past the default 30s per-call limit.
 
-Prints a JSON array of {"label": str, "startMs": int, "endMs": int} objects to stdout, in
-chronological order, with trail-window timestamps already offset to be track-relative. Any
-diagnostic output goes to stderr so stdout stays pure JSON.
+Prints a JSON array of {"label": str, "startMs": int, "endMs": int, "window": str} objects to
+stdout, in chronological order, with every timestamp already track-relative. Any diagnostic
+output goes to stderr so stdout stays pure JSON.
 """
 import json
 import os
@@ -35,12 +42,20 @@ import subprocess
 import sys
 import tempfile
 
-# 2.5 minutes: covers every intro/outro observed in practice (max seen so far: ~119s) with
-# margin, while trimming a bit of per-call time — though most of a call's wall time is the
-# fixed TensorFlow/model-load cost (~13-14s), not audio duration, so shrinking this window
-# further has rapidly diminishing returns. Don't drop below ~120s without checking real data
-# first; a talk-heavy episode's intro can legitimately run close to 2 minutes.
+# 2.5 minutes: covers every intro/outro observed in practice without needing an extension, while
+# keeping the common-case cost down — most tracks don't have anywhere near this much lead-in.
+# Don't drop below ~120s without checking real data first; a talk-heavy episode's intro can
+# legitimately run close to 2 minutes even before the extension mechanism kicks in.
 WINDOW_SEC = 150
+
+# How many extra WINDOW_SEC chunks a single track can consume in one direction if it keeps
+# hitting the boundary. Caps worst-case cost (a track that's genuinely mostly-speech in both its
+# lead and trail windows) at roughly (MAX_EXTENSIONS + 1) x 2 chunks — factor this into the
+# plugin manifest's timeoutSeconds if this is ever raised.
+MAX_EXTENSIONS = 1
+
+SPEECH_LABELS = ("speech", "male", "female")
+BOUNDARY_EPSILON_MS = 500
 
 
 def probe_duration_sec(path):
@@ -102,6 +117,67 @@ def classify(seg, path, devnull_fd):
         os.dup2(saved_stdout_fd, 1)
 
 
+def classify_chunk(path, start_sec, duration_sec, work_dir, seg, devnull_fd):
+    """Extracts, separates, and classifies a single chunk, returning segments with track-relative
+    (not chunk-relative) millisecond timestamps."""
+    clip = os.path.join(work_dir, f"clip_{round(start_sec * 1000)}.wav")
+    extract_clip(path, start_sec, duration_sec, clip)
+    vocals = separate_vocals(clip, work_dir)
+    offset_ms = int(round(start_sec * 1000))
+    return [
+        {"label": label, "startMs": offset_ms + int(round(s * 1000)), "endMs": offset_ms + int(round(e * 1000))}
+        for label, s, e in classify(seg, vocals, devnull_fd)
+    ]
+
+
+def classify_lead(path, duration_sec, work_dir, seg, devnull_fd):
+    """Classifies from the start of the track forward, extending in WINDOW_SEC increments (up
+    to MAX_EXTENSIONS times) as long as the run of speech keeps reaching each chunk's end."""
+    segments = []
+    start = 0.0
+    for _ in range(MAX_EXTENSIONS + 1):
+        chunk_dur = min(WINDOW_SEC, duration_sec - start)
+        if chunk_dur <= 0:
+            break
+        chunk = classify_chunk(path, start, chunk_dur, work_dir, seg, devnull_fd)
+        segments.extend(chunk)
+        if not chunk:
+            break
+        last = chunk[-1]
+        chunk_end_ms = int(round((start + chunk_dur) * 1000))
+        if last["label"] not in SPEECH_LABELS or (chunk_end_ms - last["endMs"]) > BOUNDARY_EPSILON_MS:
+            break
+        start += chunk_dur
+    for s in segments:
+        s["window"] = "lead"
+    return segments
+
+
+def classify_trail(path, duration_sec, work_dir, seg, devnull_fd):
+    """Classifies from the end of the track backward, extending in WINDOW_SEC increments (up to
+    MAX_EXTENSIONS times) as long as the run of speech keeps starting right at each chunk's
+    start."""
+    segments = []
+    end = duration_sec
+    for _ in range(MAX_EXTENSIONS + 1):
+        chunk_dur = min(WINDOW_SEC, end)
+        if chunk_dur <= 0:
+            break
+        start = end - chunk_dur
+        chunk = classify_chunk(path, start, chunk_dur, work_dir, seg, devnull_fd)
+        segments = chunk + segments
+        if not chunk:
+            break
+        first = chunk[0]
+        chunk_start_ms = int(round(start * 1000))
+        if first["label"] not in SPEECH_LABELS or (first["startMs"] - chunk_start_ms) > BOUNDARY_EPSILON_MS:
+            break
+        end = start
+    for s in segments:
+        s["window"] = "trail"
+    return segments
+
+
 def main():
     if len(sys.argv) != 2:
         print("usage: segment.py <audio-file>", file=sys.stderr)
@@ -121,37 +197,17 @@ def main():
     out = []
     try:
         with tempfile.TemporaryDirectory() as tmp:
-            lead_dur = min(WINDOW_SEC, duration_sec)
-            trail_dur = min(WINDOW_SEC, duration_sec)
-            trail_start = max(0.0, duration_sec - trail_dur)
+            # classify_lead is always bounded by duration_sec, so on a short track it already
+            # covers the whole thing on its own (naturally, via its chunk_dur = min(WINDOW_SEC,
+            # duration_sec - start) cap) — no special-casing needed there.
+            out = classify_lead(path, duration_sec, tmp, seg, devnull_fd)
 
-            lead_clip = os.path.join(tmp, "lead.wav")
-            extract_clip(path, 0, lead_dur, lead_clip)
-            lead_vocals = separate_vocals(lead_clip, tmp)
-            for label, start, end in classify(seg, lead_vocals, devnull_fd):
-                out.append({
-                    "label": label, "startMs": int(round(start * 1000)), "endMs": int(round(end * 1000)),
-                    "window": "lead",
-                })
-
-            # Skip a separate trail pass when the windows already overlap/cover the whole
-            # track — avoids double-counting the same audio and a wasted second model call on
-            # short tracks. When skipped, the lead pass above already covers the whole track, so
-            # any trailing speech it found is still tagged "lead" — callers treat a short track
-            # as lead-window-only rather than expecting a separate trail window that doesn't
-            # exist.
-            if trail_start > lead_dur:
-                trail_clip = os.path.join(tmp, "trail.wav")
-                extract_clip(path, trail_start, trail_dur, trail_clip)
-                trail_vocals = separate_vocals(trail_clip, tmp)
-                offset_ms = int(round(trail_start * 1000))
-                for label, start, end in classify(seg, trail_vocals, devnull_fd):
-                    out.append({
-                        "label": label,
-                        "startMs": offset_ms + int(round(start * 1000)),
-                        "endMs": offset_ms + int(round(end * 1000)),
-                        "window": "trail",
-                    })
+            # Only run a separate trail pass if it wouldn't reclassify audio the (possibly
+            # extended) lead pass already covered.
+            lead_end_ms = max((s["endMs"] for s in out), default=0)
+            trail_start_ms = int(round((duration_sec - min(WINDOW_SEC, duration_sec)) * 1000))
+            if trail_start_ms > lead_end_ms:
+                out += classify_trail(path, duration_sec, tmp, seg, devnull_fd)
     finally:
         os.close(devnull_fd)
 
