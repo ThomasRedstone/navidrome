@@ -51,8 +51,10 @@ WINDOW_SEC = 150
 # How many extra WINDOW_SEC chunks a single track can consume in one direction if it keeps
 # hitting the boundary. Caps worst-case cost (a track that's genuinely mostly-speech in both its
 # lead and trail windows) at roughly (MAX_EXTENSIONS + 1) x 2 chunks — factor this into the
-# plugin manifest's timeoutSeconds if this is ever raised.
-MAX_EXTENSIONS = 1
+# plugin manifest's timeoutSeconds if this is ever raised. Overridable via
+# INASPEECH_MAX_EXTENSIONS for one-off deeper investigation of specific tracks (e.g. ones that
+# hit the shipped default's cap) without changing the default every track pays for.
+MAX_EXTENSIONS = int(os.environ.get("INASPEECH_MAX_EXTENSIONS", "1"))
 
 SPEECH_LABELS = ("speech", "male", "female")
 BOUNDARY_EPSILON_MS = 500
