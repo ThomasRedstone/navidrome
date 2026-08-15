@@ -77,8 +77,19 @@ func (p *silenceMarkerPlugin) GetMediaMarkers(req mediaMarkerProvider.GetMediaMa
 
 	last := resp.Spans[len(resp.Spans)-1]
 	if durationMs > 0 && last.EndMs >= durationMs-leadTrailToleranceMs && last.StartMs != first.StartMs {
+		// Navidrome's own track.Duration (tag/header-estimated, e.g. from an MP3's VBR header)
+		// can legitimately disagree with ffmpeg's own detected duration by a couple of seconds —
+		// common on VBR-encoded files. Using durationMs verbatim as the marker's end risks
+		// end < start (a real case seen in practice: a detected silence span starting a few
+		// seconds after Navidrome's own reported duration). last.EndMs is ffmpeg's own measured
+		// end of that span, so it's never before last.StartMs; take whichever of the two
+		// candidate ends is larger so the marker always covers what was actually detected.
+		end := last.EndMs
+		if durationMs > end {
+			end = durationMs
+		}
 		markers = append(markers, mediaMarkerProvider.MediaMarkerInfo{
-			Kind: kindTrailSilence, StartMs: last.StartMs, EndMs: durationMs,
+			Kind: kindTrailSilence, StartMs: last.StartMs, EndMs: end,
 		})
 	}
 
